@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<receipt>
+	<layout>
+		<name>default</name>
+	</layout>
+	<layout>
+		<name>standard</name>
+	</layout>
+</receipt>

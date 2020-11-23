@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <theme>
+        <name>gothic</name>
+		<cover>gothic.png</cover>
+		<version>1.0</version>
+		<build>1</build>
+		<developer>Daniel Mgbeafuruike</developer>
+		<designer>Daniel Mgbeafuruike</designer>
+		<user>admin</user>
+    </theme>

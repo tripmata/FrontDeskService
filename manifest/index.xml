@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Themes>
+	<theme>
+		<path>default</path>
+	</theme>
+	<theme>
+		<path>material</path>
+	</theme>
+	<theme>
+		<path>modern</path>
+	</theme>
+	<theme>
+		<path>sleak</path>
+	</theme>
+	<theme>
+		<path>semantic</path>
+	</theme>
+	<theme>
+		<path>gothic</path>
+	</theme>
+</Themes>

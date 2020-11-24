@@ -58,9 +58,9 @@
             $this->Email1 = $site->Email1;
             $this->Email2 = $site->Email2;
 
-            $this->DatabaseName = $databaseName;
-            $this->DataBaseUser = $databaseUser;
-            $this->DataBasepassword = $databasepassword;
+            // $this->DatabaseName = $databaseName;
+            // $this->DataBaseUser = $databaseUser;
+            // $this->DataBasepassword = $databasepassword;
         }
 
 

@@ -33,7 +33,8 @@
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/montserrat/stylesheet.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/nunito/stylesheet.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/varelaround/stylesheet.css'/>
-    
+
+            <script type='text/javascript'>var url = {\"storage\" : \"".$cdn."\", \"host\" : \"".$host."\"}</script>
             <script type='application/javascript' src='".$cdn."/js/jquery.min.js'></script>
             <script type='application/javascript' src='".$cdn."/js/functions.js'></script>
             <script type='application/javascript' src='".$cdn."/js/semantic.min.js'></script>

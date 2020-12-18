@@ -5,11 +5,15 @@
     $propertyName = $user->Property->Name;
     $username = $user->Username;
     $font = "quicksandregular";
+    $requestToken = isset($_REQUEST['handshake']) ? 'data-token="'.$_REQUEST['handshake'].'"' : '';
 
+    // change username
+    $username = $requestToken != '' ? 'Admin' : $username;
 
+    // create content
     $ret->Content = "
     <!DOCTYPE html>
-    <html>
+    <html data-property='".$user->Property->Id."' ".$requestToken.">
         <head>
             <meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>
             <meta content='IE=edge,chrome=1' http-equiv='X-UA-Compatible'>
@@ -33,6 +37,7 @@
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/montserrat/stylesheet.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/nunito/stylesheet.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/varelaround/stylesheet.css'/>
+            <link rel='icon' type='image/png' href='".$cdn."/../../logo/favicon.png'/>
 
             <script type='text/javascript'>var url = {\"storage\" : \"".$cdn."\", \"host\" : \"".$host."\"}</script>
             <script type='application/javascript' src='".$cdn."/js/jquery.min.js'></script>

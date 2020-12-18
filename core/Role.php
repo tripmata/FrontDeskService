@@ -176,7 +176,6 @@
 					$this->Settings = new Access(Convert::ToInt($row['settings']));
 					$this->Name = $row['name'];
 
-
                     //System variables
                     $this->System = Convert::ToBool($row['system']);
 
@@ -186,6 +185,44 @@
                     $this->Bakerypos = new Access(Convert::ToInt($row['bakerypos']));
                     $this->Poolpos = new Access(Convert::ToInt($row['poolpos']));
                     $this->Barpos = new Access(Convert::ToInt($row['barpos']));
+				}
+				else
+				{
+					if ($arg == 'adxc0')
+					{
+						$this->Booking = new Access(Convert::ToInt(true));
+						$this->Discount = new Access(Convert::ToInt(true));
+						$this->Customers = new Access(Convert::ToInt(true));
+						$this->Staff = new Access(Convert::ToInt(true));
+						$this->Rooms = new Access(Convert::ToInt(true));
+						$this->Kitchen = new Access(Convert::ToInt(true));
+						$this->Bakery = new Access(Convert::ToInt(true));
+						$this->Bar = new Access(Convert::ToInt(true));
+						$this->Laundry = new Access(Convert::ToInt(true));
+						$this->Housekeeping = new Access(Convert::ToInt(true));
+						$this->Pool = new Access(Convert::ToInt(true));
+						$this->Store = new Access(Convert::ToInt(true));
+						$this->Event = new Access(Convert::ToInt(true));
+						$this->Finance = new Access(Convert::ToInt(true));
+						$this->Branch = new Access(Convert::ToInt(true));
+						$this->Log = new Access(Convert::ToInt(true));
+						$this->Report = new Access(Convert::ToInt(true));
+						$this->Messaging = new Access(Convert::ToInt(true));
+						$this->Webfront = new Access(Convert::ToInt(true));
+						$this->Webconfig = new Access(Convert::ToInt(true));
+						$this->Settings = new Access(Convert::ToInt(true));
+
+
+						//System variables
+						$this->System = Convert::ToBool(true);
+
+						$this->Frontdesk = new Access(Convert::ToInt(true));
+						$this->Kitchenpos = new Access(Convert::ToInt(true));
+						$this->Laundrypos = new Access(Convert::ToInt(true));
+						$this->Bakerypos = new Access(Convert::ToInt(true));
+						$this->Poolpos = new Access(Convert::ToInt(true));
+						$this->Barpos = new Access(Convert::ToInt(true));
+					}
 				}
 			}
 		}

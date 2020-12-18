@@ -24,7 +24,7 @@
     // @var Subscriber $subscriber
     $subscriber = new Subscriber();
     
-    if(isset($_REQUEST['usersess']))
+    if (isset($_REQUEST['usersess']))
     {
         $user = new User($_REQUEST['usersess']);
 

@@ -174,4 +174,14 @@
             }
             return $meta;
         }
+
+        // print formatted json data to screen
+        public function printJson(array $data) : int
+        {
+            // print json string
+            echo json_encode($data, JSON_PRETTY_PRINT);
+
+            // return 0
+            return 0;
+        }
     }

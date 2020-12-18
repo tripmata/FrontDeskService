@@ -39,7 +39,7 @@
 
 		public function Initialize($arg=null)
         {
-            if($arg != null)
+            if ($arg != null)
             {
                 $db = DB::GetDB();
 
@@ -67,20 +67,23 @@
                 {
                     if($arg == "adxc0")
                     {
+                        
                         $this->Id = $arg;
                         $this->Created = new WixDate();
                         $this->Name = "Main";
                         $this->Surname = "Admin";
                         $this->Staffid = $arg;
-                        $this->Username = "";
+                        $this->Username = "Admin";
                         $this->Password = "";
                         $this->Status = true;
                         $this->Lastseen = time();
                         $this->Type = "super admin";
 
+                        // load property
+                        if (isset($_REQUEST['property'])) $this->Property = new Property($_REQUEST['property']);
 
-                        $this->Role = new Role();
-                        $this->Role->Initialize();
+                        $this->Role = new Role(new Subscriber());
+                        $this->Role->Initialize('adxc0');
 
                         $this->Role->Booking->ReadAccess = true;
                         $this->Role->Discount->ReadAccess = true;
@@ -445,6 +448,37 @@
                 $ret->Status = Convert::ToBool($row['status']);
                 $ret->Lastseen = new WixDate($row['lastseen']);
                 $ret->Property = new Property($row['property']);
+            }
+            return $ret;
+        }
+
+        /**
+         * @method User isPropertyAdmin
+         * @param string $customerId
+         * @param string $propertyId
+         */
+        public static function isPropertyAdmin($customerId, $propertyId)
+        {
+            // check customer table
+            $db = DB::GetDB();
+            $ret = null;
+
+            $res = $db->query("SELECT * FROM customer WHERE customerid='$customerId'");
+
+            if($res->num_rows > 0)
+            {
+                $row = $res->fetch_assoc();
+
+                $ret = new User();
+                $ret->Id = $row['customerId'];
+                $ret->Created = new WixDate($row['created']);
+                $ret->Name = $row['name'];
+                $ret->Surname = $row['surname'];
+                $ret->Staffid = null;
+                $ret->Username = $row['surname'];
+                $ret->Password = $row['password'];
+                $ret->Status = Convert::ToBool($row['status']);
+                $ret->Property = new Property($propertyId);
             }
             return $ret;
         }

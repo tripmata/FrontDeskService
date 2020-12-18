@@ -1,5 +1,5 @@
 <?php
-
+    session_start();
     require_once ("loader.php");
 
     $host = $urlConfiguration->host;
@@ -34,7 +34,20 @@
     $ret->Data = null;
     $ret->Message = "Login and try again";
 
-    switch($_REQUEST['job'])
+    // get user session
+    if (isset($_REQUEST['request_token']))
+    {
+        $data = json_decode(base64_decode($_REQUEST['request_token']));
+
+        // set usersess
+        if (is_object($data))
+        {
+            $_REQUEST['usersess'] = $data->usersess;
+        }
+        
+    }
+
+    switch(urldecode($_REQUEST['job']))
     {
         case "get pos settings":
             if(isset($_REQUEST['usersess']))
@@ -108,6 +121,7 @@
                         {
                             $store = Reservation::applyFilter($property, $filter, $_REQUEST['dueDate']);
                         }
+
                         $ret->Total = count($store);
 
                         $start = (($ret->Page - 1) * $ret->Perpage);
@@ -149,7 +163,7 @@
                         $ret->Status = "success";
                         $ret->Message = "Id added";
 
-                        $customer = new Customer($_REQUEST['customer']);
+                        $customer = new CustomerByProperty($_REQUEST['customer']);
                         $customer->Idtype = $_REQUEST['idType'];
                         $customer->Idnumber = $_REQUEST['num'];
                         $customer->Idimage = $_REQUEST['idImage'];
@@ -244,7 +258,7 @@
                         $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
 
                         $ret->Status = "success";
-                        $ret->Data = new Customer($_REQUEST['customer']);
+                        $ret->Data = new CustomerByProperty($_REQUEST['customer']);
                     }
                 }
             }
@@ -283,11 +297,11 @@
                         $ret->Page = $page;
                         $ret->Perpage = $perpage;
 
-                        $store = Guest::Search($subscriber, $_REQUEST['searchterm']);
+                        $store = CustomerByProperty::Search($subscriber, $_REQUEST['searchterm']);
 
                         $ret->inHouse = Lodging::inHouseCount($subscriber);
                         $ret->todayCheckin = Lodging::checkInTodayCount($subscriber);
-                        $ret->allGuest = Guest::CountAll($subscriber);
+                        $ret->allGuest = CustomerByProperty::CountAll($subscriber);
 
                         $ret->Total = count($store);
 
@@ -297,7 +311,7 @@
                         $x = 0;
                         for($i = $start; $i < count($store); $i++)
                         {
-                            $ret->Data[$x] = new Customer($store[$i]->Customer);
+                            $ret->Data[$x] = $store[$i];
                             if($i == $stop){break;}
                             $x++;
                         }
@@ -305,8 +319,58 @@
                     }
                 }
             }
-            break;
+        break;
+        case "get tripmata customers":
+            if(isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
 
+                if ($user->Id != "")
+                {
+                    $user->UpdateSeenTime();
+                }
+
+                $settings = null;
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
+                {
+                    if ($user->Role->Frontdesk->WriteAccess)
+                    {
+                        $subscriber = new Subscriber();
+
+                        $ret->Status = "success";
+
+                        $page = $_REQUEST['Page'];
+                        $perpage = $_REQUEST['Perpage'];
+                        $filter = $_REQUEST['filter'];
+                        //$filtervalue = $_REQUEST['Filtervalue'];
+
+                        $ret->Data = [];
+                        $store = [];
+
+                        $ret->Page = $page;
+                        $ret->Perpage = $perpage;
+
+                        $store = Customer::Search($subscriber, $_REQUEST['searchterm']);
+
+                        $ret->Total = count($store);
+
+                        $start = (($ret->Page - 1) * $ret->Perpage);
+                        $stop = (($start + $ret->Perpage) - 1);
+
+                        $x = 0;
+                        for($i = $start; $i < count($store); $i++)
+                        {
+                            $ret->Data[$x] = $store[$i];
+                            if($i == $stop){break;}
+                            $x++;
+                        }
+
+                    }
+                }
+            }
+        break;
         case "get pos discount":
             if(isset($_REQUEST['usersess']))
             {
@@ -466,7 +530,7 @@
             break;
 
         case "frontdesk operation":
-            if(isset($_REQUEST['usersess']))
+            if (isset($_REQUEST['usersess']))
             {
                 $user = new User();
                 $user->Initialize($_REQUEST['usersess']);
@@ -485,7 +549,7 @@
                         $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
                         $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
 
-                        if($_REQUEST['operation'] === "checkout")
+                        if ($_REQUEST['operation'] === "checkout")
                         {
                             $ret->Message = "Hello Dan";
 
@@ -508,7 +572,8 @@
                             $ret->Status = "success";
                             $ret->Message = "checkout completed";
                         }
-                        if($_REQUEST['operation'] === "reservation")
+
+                        if ($_REQUEST['operation'] === "reservation")
                         {
                             $guest = json_decode($_REQUEST['guest']);
 
@@ -527,17 +592,17 @@
 
                             $customer = null;
 
-                            if(Customer::PhoneExist($guest->phone))
+                            if (CustomerByProperty::PhoneExist($guest->phone))
                             {
-                                $customer = Customer::ByPhone($guest->phone);
+                                $customer = CustomerByProperty::ByPhone($guest->phone);
                             }
-                            else if(Customer::EmailExist($guest->email))
+                            elseif (CustomerByProperty::EmailExist($guest->email))
                             {
-                                $customer = Customer::ByEmail($guest->email);
+                                $customer = CustomerByProperty::ByEmail($guest->email);
                             }
                             else
                             {
-                                $customer = new Customer(new Subscriber());
+                                $customer = new CustomerByProperty(new Subscriber());
                                 $customer->Phone = $guest->phone;
                                 $customer->Email = $guest->email;
                                 $customer->Name = $guest->name;
@@ -546,10 +611,28 @@
                                 $customer->State = $guest->state;
                                 $customer->City = $guest->city;
                                 $customer->Sex = $guest->sex;
-                                $customer->Dateofbirth = $guest->dob;
+                                $customer->DOB = $guest->dob;
+                                $customer->Address = $guest->address;
 
-                                $customer->Save();
+                                $customer = $customer->fetchCustomerIdBeforeSaving();
+                                // $customer->Save();
                             }
+
+                            // $guest = Guest::ByCustomer($subscriber, $customer->Id);
+                            
+                            // if($guest === null)
+                            // {
+                            //     $guest = new Guest($subscriber);
+                            //     $guest->Customer = $customer->Id;
+                            //     $guest->Name = $customer->Name;
+                            //     $guest->Surname = $customer->Surname;
+                            //     $guest->Phone = $customer->Surname;
+                            //     $guest->Email = $customer->Email;
+                            //     $guest->Idtype = $customer->Idtype;
+                            //     $guest->Idnumber = $customer->Idnumber;
+                            //     $guest->Idimage = $customer->Idimage;
+                            //     $guest->Save();
+                            // }
 
                             $roomList = [];
 
@@ -582,24 +665,7 @@
                             $reservation->Checkoutdate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
                             $reservation->Checkindate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
                             $reservation->Rooms = $roomList;
-
-
-                            $guest = Guest::ByCustomer($subscriber, $customer->Id);
-                            if($guest === null)
-                            {
-                                $guest = new Guest($subscriber);
-                                $guest->Customer = $customer->Id;
-                                $guest->Name = $customer->Name;
-                                $guest->Surname = $customer->Surname;
-                                $guest->Phone = $customer->Surname;
-                                $guest->Email = $customer->Email;
-                                $guest->Idtype = $customer->Idtype;
-                                $guest->Idnumber = $customer->Idnumber;
-                                $guest->Idimage = $customer->Idimage;
-                                $guest->Save();
-                            }
                             $reservation->Save();
-
 
 
                             //retrieve and reprocess reservation
@@ -610,7 +676,8 @@
                             $ret->Status = "success";
                             $ret->Message = "Reservation saved";
                         }
-                        if($_REQUEST['operation'] === "add payment")
+
+                        if ($_REQUEST['operation'] === "add payment")
                         {
                             $reservation = new Reservation($_REQUEST['booking']);
                             $reservation->Paidamount += doubleval($reservation->Paidamount) + doubleval($_REQUEST['amount']);
@@ -630,7 +697,8 @@
                             $ret->Message = "transaction saved";
                             $ret->Data = null;
                         }
-                        if($_REQUEST['operation'] === "add bill")
+
+                        if ($_REQUEST['operation'] === "add bill")
                         {
                             $lodging = new Lodging($subscriber);
                             $lodging->Initialize($_REQUEST['booking']);
@@ -643,7 +711,8 @@
                             $ret->Data = null;
                             $ret->Status = "success";
                         }
-                        if($_REQUEST['operation'] === "deposit")
+
+                        if ($_REQUEST['operation'] === "deposit")
                         {
                             $lodging = new Lodging($subscriber);
                             $lodging->Initialize($_REQUEST['booking']);
@@ -668,7 +737,8 @@
                             $ret->Message = "transaction saved";
                             $ret->Data = null;
                         }
-                        if($_REQUEST['operation'] === "checkin")
+
+                        if ($_REQUEST['operation'] === "checkin")
                         {
                             $lodging = new Lodging($subscriber);
 
@@ -698,20 +768,30 @@
                                 $lodging->Children = Convert::ToInt($reservation->Children);
                                 $lodging->Adults = Convert::ToInt($reservation->Adult);
 
+                                // save customer
+                                if (!CustomerByProperty::PhoneExist($reservation->Customer->Phone) && !CustomerByProperty::EmailExist($reservation->Customer->Email))
+                                {
+                                    $customer = new CustomerByProperty(new Subscriber());
+                                    $customer->Email = $reservation->Customer->Email;
+                                    $customer->Id = $reservation->Customer->Id;
+                                    $customer->Phone = $reservation->Customer->Phone;
+                                    $customer->fetchCustomerIdBeforeSaving(CustomerByProperty::SAVE_ON_CHECKIN);
+                                }
+                                
                             }
                             else
                             {
-                                if(Customer::PhoneExist($guest->phone))
+                                if (CustomerByProperty::PhoneExist($guest->phone))
                                 {
-                                    $customer = Customer::ByPhone($guest->phone);
+                                    $customer = CustomerByProperty::ByPhone($guest->phone);
                                 }
-                                else if(Customer::EmailExist($guest->email))
+                                elseif (CustomerByProperty::EmailExist($guest->email))
                                 {
-                                    $customer = Customer::ByEmail($guest->email);
+                                    $customer = CustomerByProperty::ByEmail($guest->email);
                                 }
                                 else
                                 {
-                                    $customer = new Customer(new Subscriber());
+                                    $customer = new CustomerByProperty(new Subscriber());
                                     $customer->Phone = $guest->phone;
                                     $customer->Email = $guest->email;
                                     $customer->Name = $guest->name;
@@ -721,37 +801,43 @@
                                     $customer->City = $guest->city;
                                     $customer->Sex = $guest->sex;
                                     $customer->Dateofbirth = $guest->dob;
-                                    $customer->Save();
+                                    $customer->DOB = $guest->dob;
+                                    $customer->Address = $guest->address;
+
+                                    $customer = $customer->fetchCustomerIdBeforeSaving(CustomerByProperty::SAVE_ON_CHECKIN);
+                                    // $customer->Save();
                                 }
+
                                 $lodging->Guest = $customer;
 
                                 $lodging->Children = Convert::ToInt($guest->children);
                                 $lodging->Adults = Convert::ToInt($guest->adults);
                             }
 
-                            $guest = Guest::ByCustomer($subscriber, $lodging->Guest->Id);
-                            if($guest === null)
-                            {
-                                $guest = new Guest($subscriber);
-                                $guest->Customer = $lodging->Guest->Id;
-                                $guest->Name = $lodging->Guest->Name;
-                                $guest->Surname = $lodging->Guest->Surname;
-                                $guest->Phone = $lodging->Guest->Surname;
-                                $guest->Email = $lodging->Guest->Email;
-                                $guest->Idtype = $lodging->Guest->Idtype;
-                                $guest->Idnumber = $lodging->Guest->Idnumber;
-                                $guest->Idimage = $lodging->Guest->Idimage;
-                                $guest->Save();
-                            }
+                            // $guest = Guest::ByCustomer($subscriber, $lodging->Guest->Id);
+                            // if($guest === null)
+                            // {
+                            //     $guest = new Guest($subscriber);
+                            //     $guest->Customer = $lodging->Guest->Id;
+                            //     $guest->Name = $lodging->Guest->Name;
+                            //     $guest->Surname = $lodging->Guest->Surname;
+                            //     $guest->Phone = $lodging->Guest->Surname;
+                            //     $guest->Email = $lodging->Guest->Email;
+                            //     $guest->Idtype = $lodging->Guest->Idtype;
+                            //     $guest->Idnumber = $lodging->Guest->Idnumber;
+                            //     $guest->Idimage = $lodging->Guest->Idimage;
+                            //     $guest->Save();
+                            // }
 
 
                             $lodging->User = $_REQUEST['posuser'];
 
-                            if(doubleval($_REQUEST['paidAmount']) > 0)
+                            if (doubleval($_REQUEST['paidAmount']) > 0)
                             {
                                 $lodging->Paidamount = doubleval($_REQUEST['paidAmount']);
                                 $lodging->Paid = true;
                             }
+                            
                             $lodging->Discount = doubleval($_REQUEST['discount']);
                             $lodging->Taxes = doubleval($_REQUEST['taxes']);
                             $lodging->Total = doubleval($_REQUEST['total']);
@@ -815,17 +901,22 @@
                             $ret->Status = "success";
                             $ret->Message = "checkin completed";
                         }
-                        if($_REQUEST['operation'] === "mark no-show")
+
+                        if ($_REQUEST['operation'] === "mark no-show")
                         {
                             $reservation = new Reservation($_REQUEST['booking']);
                             $reservation->Noshow = true;
                             $reservation->Save();
 
                             $ret->Status = "success";
-                            $ret->Message = "No show marked";
+                            $ret->Message = "No show marked. Pending Confirmation from Customer.";
                             $ret->Data = null;
+
+                            // send confirmation email
+                            $reservation->sendConfirmationMail();
                         }
-                        if($_REQUEST['operation'] === "cancel reservation")
+
+                        if ($_REQUEST['operation'] === "cancel reservation")
                         {
                             $reservation = new Reservation($_REQUEST['booking']);
                             $reservation->Cancelled = true;
@@ -877,6 +968,43 @@
                 $ret->status = "failed";
                 $ret->message = "user nor found";
             }
-            break;
+        break;
+        case "check room availability":
+
+            // check lodging
+            $rooms = Lodging::checkAvailability();
+            
+        break;
+        case "confirm noshow":
+
+            // check id
+            if (!isset($_REQUEST['id'])) return $router->printJson(['status' => 'error', 'message' => 'Missing Request ID. Invalid Request.']);
+
+            // get database instance
+            $db = DB::GetDB();
+
+            // verify id
+            $reservation = $db->query("SELECT noshow FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
+
+            // do we have such reservation
+            if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
+
+            // get row
+            $row = $reservation->fetch_assoc();
+
+            // flagged no show ?
+            if ($row['noshow'] != 2) return $router->printJson(['status' => 'error', 'message' => 'Reservation is still active. Cannot continue with confirmation.']);
+
+            // update reservation
+            $db->query("UPDATE reservation SET noshow = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+
+            // TODO: Perform refund policy if customer made payment already
+            // ...
+
+            // all good
+            header('location: ' . rtrim($urlConfiguration->origin, '/') . '/noshow-confirmed');
+
+        break;
     }
+
     echo json_encode($ret);

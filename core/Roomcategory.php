@@ -208,8 +208,9 @@
 			$db = $subscriber->GetDB();
 			$ret = array();
 			$i = 0;
+			$property = $_REQUEST['propertyid'];
 
-			$res = $db->query("SELECT * FROM roomcategory");
+			$res = $db->query("SELECT * FROM roomcategory WHERE propertyid = '$property'");
 			while(($row = $res->fetch_assoc()) != null)
 			{
 				$ret[$i] = new Roomcategory($subscriber);

@@ -52,7 +52,7 @@
 					$this->Checkindate = new WixDate($row['checkindate']);
 					$this->Checkoutdate = new WixDate($row['checkoutdate']);
 					
-					$this->Noshow = Convert::ToBool($row['noshow']);
+                    $this->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                     $this->Rooms = [];
                     $r = json_decode($row['rooms']);
@@ -103,7 +103,7 @@
 			$id = $this->Id;
 			$created = time();
 			$property = addslashes(is_a($this->Property, "Property") ? $this->Property->Id : $this->Property);
-			$customer = addslashes(is_a($this->Customer, "Customer") ? $this->Customer->Id : $this->Customer);
+			$customer = addslashes((is_a($this->Customer, "Customer") || is_a($this->Customer, "CustomerByProperty")) ? $this->Customer->Id : $this->Customer);
 			$checkindate = Convert::ToInt($this->Checkindate);
 			$checkoutdate = Convert::ToInt($this->Checkoutdate);
 
@@ -120,7 +120,10 @@
 			$checkedin = Convert::ToInt($this->Checkedin);
 			$checkedout = Convert::ToInt($this->Checkedout);
 			
-			$noshow = Convert::ToInt($this->Noshow);
+            $noshow = Convert::ToInt($this->Noshow);
+
+            // update no show flag
+            $noshow = $noshow == 1 ? 2 : $noshow;
 
 			if($booking == "")
             {
@@ -188,59 +191,64 @@
 
 			$id = is_a($property, "Property") ? $property->Id : $property;
 
-			$res = $db->query("SELECT * FROM reservation WHERE property='$id' AND (customer LIKE '%$term%' OR checkindate LIKE '%$term%' OR checkoutdate LIKE '%$term%' OR rooms LIKE '%$term%' OR total LIKE '%$term%' OR discount LIKE '%$term%' OR paid LIKE '%$term%' OR children LIKE '%$term%' OR adult LIKE '%$term%' OR request LIKE '%$term%') ORDER BY id DESC");
+			$res = $db->query("SELECT * FROM reservation WHERE customer LIKE '%$term%' OR checkindate LIKE '%$term%' OR checkoutdate LIKE '%$term%' OR rooms LIKE '%$term%' OR total LIKE '%$term%' OR discount LIKE '%$term%' OR paid LIKE '%$term%' OR children LIKE '%$term%' OR adult LIKE '%$term%' OR request LIKE '%$term%' ORDER BY id DESC");
 			while(($row = $res->fetch_assoc()) != null)
 			{
-                $ret[$i] = new Reservation();
-                $ret[$i]->Id = $row['reservationid'];
-                $ret[$i]->Created = new WixDate($row['created']);
-                $ret[$i]->Property = $row['property'];
-                $ret[$i]->Customer = $row['customer'];
-                $ret[$i]->Checkindate = $row['checkindate'];
-                $ret[$i]->Checkoutdate = $row['checkoutdate'];
-                
-                
-                $ret[$i]->Rooms = [];
-                $r = json_decode($row['rooms']);
+                if ($row['property'] == $id) :
 
-                for($j = 0; $j < count($r); $j++)
-                {
-                    $ro = new stdClass();
-                    $ro->Room = new Roomcategory(new Subscriber($ret[$i]->Property->Databasename, $ret[$i]->Property->DatabaseUser, $ret[$i]->Property->DatabasePassword));
-                    $ro->Room->Initialize($r[$j]->room);
-                    $ro->Number = $r[$j]->number;
+                    $ret[$i] = new Reservation();
+                    $ret[$i]->Id = $row['reservationid'];
+                    $ret[$i]->Created = new WixDate($row['created']);
+                    $ret[$i]->Property = $row['property'];
+                    $ret[$i]->Customer = $row['customer'];
+                    $ret[$i]->Checkindate = $row['checkindate'];
+                    $ret[$i]->Checkoutdate = $row['checkoutdate'];
                     
-                    array_push($ret[$i]->Rooms, $ro);
-                }
+                    
+                    $ret[$i]->Rooms = [];
+                    $r = json_decode($row['rooms']);
 
+                    for($j = 0; $j < count($r); $j++)
+                    {
+                        $ro = new stdClass();
+                        $ro->Room = new Roomcategory(new Subscriber($ret[$i]->Property->Databasename, $ret[$i]->Property->DatabaseUser, $ret[$i]->Property->DatabasePassword));
+                        $ro->Room->Initialize($r[$j]->room);
+                        $ro->Number = $r[$j]->number;
+                        
+                        array_push($ret[$i]->Rooms, $ro);
+                    }
+
+                    
+                    $ret[$i]->Total = $row['total'];
+                    $ret[$i]->Discount = $row['discount'];
+                    $ret[$i]->Paidamount = $row['paidamount'];
+                    $ret[$i]->Children = $row['children'];
+                    $ret[$i]->Adult = $row['adult'];
+                    $ret[$i]->Paid = Convert::ToBool($row['paid']);
+                    $ret[$i]->Request = $row['request'];
+                    $ret[$i]->Bookingnumber = $row['booking'];
+                    $ret[$i]->Activated = Convert::ToBool($row['activated']);
+                    $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
+                    $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
+                    $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+
+                    if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
+                    {
+                        $ret[$i]->Status = 3;
+                    }
+                    else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
+                    {
+                        $ret[$i]->Status = 1;
+                    }
+                    else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
+                    {
+                        $ret[$i]->Status = 2;
+                    }
+
+                    $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
+                    $i++;
                 
-                $ret[$i]->Total = $row['total'];
-                $ret[$i]->Discount = $row['discount'];
-                $ret[$i]->Paidamount = $row['paidamount'];
-                $ret[$i]->Children = $row['children'];
-                $ret[$i]->Adult = $row['adult'];
-                $ret[$i]->Paid = Convert::ToBool($row['paid']);
-                $ret[$i]->Request = $row['request'];
-                $ret[$i]->Bookingnumber = $row['booking'];
-                $ret[$i]->Activated = Convert::ToBool($row['activated']);
-                $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
-                $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
-
-                if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
-                {
-                    $ret[$i]->Status = 3;
-                }
-                else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
-                {
-                    $ret[$i]->Status = 1;
-                }
-                else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
-                {
-                    $ret[$i]->Status = 2;
-                }
-                $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
-				$i++;
+                endif;
 			}
 			return $ret;
 		}
@@ -249,9 +257,10 @@
 		{
 			$db = DB::GetDB();
 			$ret = array();
-			$i = 0;
+            $i = 0;
+            $property = isset($_REQUEST['property']) ? $_REQUEST['property'] : $_REQUEST['propertyid'];
 
-			$res = $db->query("SELECT reservationid FROM reservation WHERE ".$field." ='$term'");
+			$res = $db->query("SELECT reservationid FROM reservation WHERE ".$field." ='$term' AND property = '$property'");
 			while(($row = $res->fetch_assoc()) != null)
 			{
                 $ret[$i] = new Reservation();
@@ -287,7 +296,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -311,9 +320,10 @@
 		{
 			$db = DB::GetDB();
 			$ret = array();
-			$i = 0;
+            $i = 0;
+            $property = isset($_REQUEST['property']) ? $_REQUEST['property'] : $_REQUEST['propertyid'];
 
-			$res = $db->query("SELECT reservationid FROM reservation ORDER BY ".$field." ".$order."");
+			$res = $db->query("SELECT reservationid FROM reservation WHERE property = '$property' ORDER BY ".$field." ".$order."");
 			while(($row = $res->fetch_assoc()) != null)
 			{
                 $ret[$i] = new Reservation();
@@ -349,7 +359,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -373,9 +383,10 @@
 		{
 			$db = DB::GetDB();
 			$ret = array();
-			$i = 0;
+            $i = 0;
+            $property = isset($_REQUEST['property']) ? $_REQUEST['property'] : $_REQUEST['propertyid'];
 
-			$res = $db->query("SELECT * FROM reservation");
+			$res = $db->query("SELECT * FROM reservation WHERE property = '$property'");
 			while(($row = $res->fetch_assoc()) != null)
 			{
 				$ret[$i] = new Reservation();
@@ -411,7 +422,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -476,7 +487,7 @@
                 $ret->Activated = Convert::ToBool($row['activated']);
                 $ret->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret->Noshow = Convert::ToBool($row['noshow']);
+                $ret->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret->Activated === false))
                 {
@@ -541,7 +552,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -608,7 +619,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
@@ -677,7 +688,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -704,7 +715,7 @@
             $i = 0;
             $id = is_a($property, "Property") ? $property->Id : $property;
 
-            $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND noshow=1");
+            $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND noshow=1 OR noshow =2");
              while(($row = $res->fetch_assoc()) != null)
             {
                 $ret[$i] = new Reservation();
@@ -771,59 +782,63 @@
             $start = strtotime(date("m/d/Y"));
             $stop = (($start) + ((60 * 60) * 24));
 
-            $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=0 AND (checkindate >= '$start' AND checkindate < '$stop')");
-             while(($row = $res->fetch_assoc()) != null)
+            $res = $db->query("SELECT * FROM reservation WHERE checkedin=0 AND (checkindate >= '$start' AND checkindate < '$stop') AND paid = 0");
+            while(($row = $res->fetch_assoc()) != null)
             {
-                $ret[$i] = new Reservation();
-                $ret[$i]->Id = $row['reservationid'];
-                $ret[$i]->Created = new WixDate($row['created']);
-                $ret[$i]->Property = new Property($row['property']);
-                $ret[$i]->Customer = new Customer($GLOBALS['subscriber']);
-                $ret[$i]->Customer->Initialize($row['customer']);
-                $ret[$i]->Checkindate = new WixDate($row['checkindate']);
-                $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-                
-                
-                $ret[$i]->Rooms = [];
-                $r = json_decode($row['rooms']);
-
-                for($j = 0; $j < count($r); $j++)
-                {
-                    $ro = new stdClass();
-                    $ro->Room = new Roomcategory(new Subscriber($ret[$i]->Property->Databasename, $ret[$i]->Property->DatabaseUser, $ret[$i]->Property->DatabasePassword));
-                    $ro->Room->Initialize($r[$j]->room);
-                    $ro->Number = $r[$j]->number;
+                if ($row['property'] == $id) :
                     
-                    array_push($ret[$i]->Rooms, $ro);
-                }
-                
-                $ret[$i]->Total = $row['total'];
-                $ret[$i]->Discount = $row['discount'];
-                $ret[$i]->Paidamount = $row['paidamount'];
-                $ret[$i]->Children = $row['children'];
-                $ret[$i]->Adult = $row['adult'];
-                $ret[$i]->Paid = Convert::ToBool($row['paid']);
-                $ret[$i]->Request = $row['request'];
-                $ret[$i]->Bookingnumber = $row['booking'];
-                $ret[$i]->Activated = Convert::ToBool($row['activated']);
-                $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
-                $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                    $ret[$i] = new Reservation();
+                    $ret[$i]->Id = $row['reservationid'];
+                    $ret[$i]->Created = new WixDate($row['created']);
+                    $ret[$i]->Property = new Property($row['property']);
+                    $ret[$i]->Customer = new CustomerByProperty($GLOBALS['subscriber']);
+                    $ret[$i]->Customer->Initialize($row['customer']);
+                    $ret[$i]->Checkindate = new WixDate($row['checkindate']);
+                    $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
+                    
+                    
+                    $ret[$i]->Rooms = [];
+                    $r = json_decode($row['rooms']);
 
-                if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
-                {
-                    $ret[$i]->Status = 3;
-                }
-                else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
-                {
-                    $ret[$i]->Status = 1;
-                }
-                else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
-                {
-                    $ret[$i]->Status = 2;
-                }
-                $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
-                $i++;
+                    for($j = 0; $j < count($r); $j++)
+                    {
+                        $ro = new stdClass();
+                        $ro->Room = new Roomcategory(new Subscriber($ret[$i]->Property->Databasename, $ret[$i]->Property->DatabaseUser, $ret[$i]->Property->DatabasePassword));
+                        $ro->Room->Initialize($r[$j]->room);
+                        $ro->Number = $r[$j]->number;
+                        
+                        array_push($ret[$i]->Rooms, $ro);
+                    }
+                    
+                    $ret[$i]->Total = $row['total'];
+                    $ret[$i]->Discount = $row['discount'];
+                    $ret[$i]->Paidamount = $row['paidamount'];
+                    $ret[$i]->Children = $row['children'];
+                    $ret[$i]->Adult = $row['adult'];
+                    $ret[$i]->Paid = Convert::ToBool($row['paid']);
+                    $ret[$i]->Request = $row['request'];
+                    $ret[$i]->Bookingnumber = $row['booking'];
+                    $ret[$i]->Activated = Convert::ToBool($row['activated']);
+                    $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
+                    $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
+                    $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+
+                    if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
+                    {
+                        $ret[$i]->Status = 3;
+                    }
+                    else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
+                    {
+                        $ret[$i]->Status = 1;
+                    }
+                    else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
+                    {
+                        $ret[$i]->Status = 2;
+                    }
+                    $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
+                    $i++;
+
+                endif;
             }
             return $ret;
         }
@@ -833,7 +848,7 @@
             $db = DB::GetDB();
             $id = is_a($property, "Property") ? $property->Id : $property;
             $today = strtotime(date("m/d/Y", time()));
-            $ret = $db->query("SELECT id FROM reservation WHERE property='$id' AND checkindate='$today' AND checkedin=0")->num_rows;
+            $ret = $db->query("SELECT id FROM reservation WHERE property='$id' AND checkindate='$today' AND checkedin=0 AND noshow = 0 AND paid = 0")->num_rows;
             $db->close();
             return $ret;
         }
@@ -1020,7 +1035,7 @@
                 $ret->Activated = Convert::ToBool($row['activated']);
                 $ret->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret->Checkedout = Convert::ToBool($row['checkedout']);
-                $ret->Noshow = Convert::ToBool($row['noshow']);
+                $ret->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret->Activated === false))
                 {
@@ -1064,7 +1079,7 @@
 
             $id = is_a($property, "Property") ? $property->Id : $property;
 
-            $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0");
+            $res = $db->query("SELECT * FROM reservation WHERE property='$id'");
             while(($row = $res->fetch_assoc()) != null)
             {
                 $ret[$i] = new Reservation();
@@ -1100,7 +1115,7 @@
                 $ret[$i]->Activated = Convert::ToBool($row['activated']);
                 $ret[$i]->Checkedin = intval($row['checkedin']);
                 $ret[$i]->Checkedout = intval($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -1130,99 +1145,142 @@
             $dDate = $duedate != "" ? strtotime($d->Month."/".$d->Day."/".$d->Year) : "";
 
             $id = is_a($property, "Property") ? $property->Id : $property;
+            $date = strtotime(date('d/M/Y'));
 
-            if($duedate == "")
+            if($filter === "all")
             {
-                if($filter === "all")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 ORDER BY id DESC");
-                }
-                else if($filter === "paid")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND paid=1 ORDER BY id DESC");
-                }
-                else if($filter === "unpaid")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND paid=0 ORDER BY id DESC");
-                }
-                else if($filter === "abandoned")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND noshow=1 ORDER BY id DESC");
-                }
+                $res = $db->query("SELECT * FROM reservation WHERE property='$id'  ORDER BY id DESC");
             }
-            else
+            else if($filter === "paid")
             {
-                if($filter === "all")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND checkindate='$dDate' ORDER BY id DESC");
-                }
-                else if($filter === "paid")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND paid=1 AND checkindate='$dDate' ORDER BY id DESC");
-                }
-                else if($filter === "unpaid")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND paid=0 AND checkindate='$dDate' ORDER BY id DESC");
-                }
-                else if($filter === "abandoned")
-                {
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND checkedin=0 AND noshow=1 AND checkindate='$dDate' ORDER BY id DESC");
-                }
+                $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paid=1 ORDER BY id DESC");
+            }
+            else if($filter === "unpaid")
+            {
+                $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0  AND paid=0 ORDER BY id DESC");
+            }
+            else if($filter === "abandoned")
+            {
+                $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) ORDER BY id DESC");
             }
 
+            // get date
+            $dateTime = new DateTime($duedate);
 
             while(($row = $res->fetch_assoc()) != null)
             {
-                $ret[$i] = new Reservation();
-                $ret[$i]->Id = $row['reservationid'];
-                $ret[$i]->Created = new WixDate($row['created']);
-                $ret[$i]->Property = new Property($row['property']);
-                $ret[$i]->Customer = new Customer($row['customer']);
-                $ret[$i]->Checkindate = new WixDate($row['checkindate']);
-                $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
+                // @var bool $canAdd
+                $canAdd = false;
+
+                // created date
+                // if (date('d/m/Y', $row['created']) == $dateTime->format('d/m/Y')) $canAdd = true;
+
+                // check check in date
+                if (date('d/m/Y', $row['checkindate']) == $dateTime->format('d/m/Y')) $canAdd = true;
+
+                // show reservation for today
+                if ($canAdd) :
+
+                    $ret[$i] = new Reservation();
+                    $ret[$i]->Id = $row['reservationid'];
+                    $ret[$i]->Created = new WixDate($row['created']);
+                    $ret[$i]->Property = new Property($row['property']);
+                    $ret[$i]->Customer = new Customer($row['customer']);
+                    $ret[$i]->Checkindate = new WixDate($row['checkindate']);
+                    $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
 
 
-                $ret[$i]->Rooms = [];
-                $r = json_decode($row['rooms']);
+                    $ret[$i]->Rooms = [];
+                    $r = json_decode($row['rooms']);
 
-                for($j = 0; $j < count($r); $j++)
-                {
-                    $ro = new stdClass();
-                    $ro->Room = new Roomcategory(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));
-                    $ro->Room->Initialize($r[$j]->room);
-                    $ro->Number = $r[$j]->number;
+                    for($j = 0; $j < count($r); $j++)
+                    {
+                        $ro = new stdClass();
+                        $ro->Room = new Roomcategory(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));
+                        $ro->Room->Initialize($r[$j]->room);
+                        $ro->Number = $r[$j]->number;
 
-                    array_push($ret[$i]->Rooms, $ro);
-                }
+                        array_push($ret[$i]->Rooms, $ro);
+                    }
 
-                $ret[$i]->Total = $row['total'];
-                $ret[$i]->Discount = $row['discount'];
-                $ret[$i]->Paidamount = $row['paidamount'];
-                $ret[$i]->Children = $row['children'];
-                $ret[$i]->Adult = $row['adult'];
-                $ret[$i]->Paid = Convert::ToBool($row['paid']);
-                $ret[$i]->Request = $row['request'];
-                $ret[$i]->Bookingnumber = $row['booking'];
-                $ret[$i]->Activated = Convert::ToBool($row['activated']);
-                $ret[$i]->Checkedin = intval($row['checkedin']);
-                $ret[$i]->Checkedout = intval($row['checkedout']);
-                $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                    $ret[$i]->Total = $row['total'];
+                    $ret[$i]->Discount = $row['discount'];
+                    $ret[$i]->Paidamount = $row['paidamount'];
+                    $ret[$i]->Children = $row['children'];
+                    $ret[$i]->Adult = $row['adult'];
+                    $ret[$i]->Paid = Convert::ToBool($row['paid']);
+                    $ret[$i]->Request = $row['request'];
+                    $ret[$i]->Bookingnumber = $row['booking'];
+                    $ret[$i]->Activated = Convert::ToBool($row['activated']);
+                    $ret[$i]->Checkedin = intval($row['checkedin']);
+                    $ret[$i]->Checkedout = intval($row['checkedout']);
+                    $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
 
-                if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
-                {
-                    $ret[$i]->Status = 3;
-                }
-                else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
-                {
-                    $ret[$i]->Status = 1;
-                }
-                else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
-                {
-                    $ret[$i]->Status = 2;
-                }
-                $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
-                $i++;
+                    if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
+                    {
+                        $ret[$i]->Status = 3;
+                    }
+                    else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
+                    {
+                        $ret[$i]->Status = 1;
+                    }
+                    else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
+                    {
+                        $ret[$i]->Status = 2;
+                    }
+                    $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
+                    $i++;
+
+                endif; 
             }
             return $ret;
+        }
+
+        // send confirmation email to customer
+        public function sendConfirmationMail()
+        {
+            // send message to activate account
+            $subscriber = new Subscriber();
+            $mail = new Mail($subscriber);
+            $template = new Messagetemplate($subscriber);
+            $template->Initialize('18atvh6p7f7ub5f9');
+            $mail->Body = $template->Body;
+
+            // get customer
+            $customer = $this->Customer;
+
+            // add full name
+            $mail->Body = str_replace('{contact}', ucwords($customer->Name . ' ' . $customer->Surname), $mail->Body);
+
+            // get url
+            $url = rtrim(Configuration::url()->domain, '/') . '/worker.php?job=confirm%20noshow&id='. $this->Id;
+
+            // build link
+            $link = '<a href="'.$url.'">Confirm Property Action</a>';
+
+            // add link
+            $mail->Body = str_replace('{link}', $link, $mail->Body);
+
+            // build date
+            $date = $this->Checkindate->Day . '/' . $this->Checkindate->Month . '/' . $this->Checkindate->Year;
+
+            // replace date
+            $mail->Body = str_replace('{date}', $date, $mail->Body);
+
+            // replace property
+            $mail->Body = str_replace('{property}', $this->Property->Name, $mail->Body);
+
+            // continue
+            $mail->From = $template->From;
+            $mail->FromName = $template->Fromname;
+            $mail->Subject = $template->Subject;
+            $mail->ReplyTo = $template->Replyto;
+            $mail->ReplyToName = $template->Fromname;
+            $mail->isHTML = 'true';
+            $mail->To = $customer->Email;
+            $mail->ToName = ucwords($customer->Name . ' ' . $customer->Surname);
+
+            // send mail
+            Mail::send($subscriber, $mail);
         }
     }

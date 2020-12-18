@@ -12,7 +12,7 @@
         public $Phone = "08012345678";
         public $Email = "hotel1@gmail.com";
         public $Address = "hotel2@hotmail.com";
-        public $Domain = "centurion.com";
+        public $Domain = "";
         public $Theme = "default";
         public $Color = "red";
         public $Currency = "ngn";
@@ -27,6 +27,7 @@
         public $Country = "";
         public $CountryShort = "";
         public $ClientTheme = "";
+        public $MessagingDomain = "";
 
         public $Smsunit = 0;
 
@@ -57,6 +58,8 @@
             $this->Phone2 = $site->Phone2;
             $this->Email1 = $site->Email1;
             $this->Email2 = $site->Email2;
+            $this->MessagingDomain = $GLOBALS['urlConfiguration']->messaging;
+            $this->Key = '9050dsvdadsvebsrhfhsdgadysry';
 
             // $this->DatabaseName = $databaseName;
             // $this->DataBaseUser = $databaseUser;

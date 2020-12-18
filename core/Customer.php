@@ -40,6 +40,9 @@ class Customer
     public $Destination = "";
     public $Origination = "";
     public $Guest = "";
+    public $DOB = "";
+    public $Address = "";
+    public $InternalEmail = "";
 
     public $hasProperty = false;
     public $hasVehicle = false;
@@ -90,8 +93,8 @@ class Customer
 
                 $this->Id = $row['customerid'];
                 $this->Created = new WixDate($row['created']);
-                $this->Name = $row['name'];
-                $this->Surname = $row['surname'];
+                $this->Name = ucfirst($row['name']);
+                $this->Surname = ucfirst($row['surname']);
                 $this->Phone = $row['phone'];
                 $this->Email = $row['email'];
                 $this->Password = $row['password'];
@@ -122,6 +125,9 @@ class Customer
                 $this->Destination = $row['destination'];
                 $this->Origination = $row['origination'];
                 $this->Guest = $row['guest'];
+                $this->Address = $row['address'];
+                $this->DOB = $row['dob'];
+                $this->InternalEmail = $row['internalEmail'];
 
                 $this->Bank = $row['bank'];
                 $this->Accountname = $row['accountname'];
@@ -176,6 +182,8 @@ class Customer
         $destination = addslashes($this->Destination);
         $origination = addslashes($this->Origination);
         $guest = addslashes(is_a($this->Guest, "Guest") ? $this->Guest->Id : $this->Guest);
+        $address = addslashes($this->Address);
+        $dob = addslashes($this->DOB);
 
         $bank = addslashes($this->Bank);
         $accountname = addslashes($this->Accountname);
@@ -186,10 +194,11 @@ class Customer
         $subscription = Convert::ToInt($this->Subscription);
         $copRequest = Convert::ToInt($this->Corporaterequest);
         $copResponse = Convert::ToInt($this->Corporateresponse);
+        $internalEmail = substr($this->Id, 0, 5) . '@tripmata.com';
 
         if($res = $db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
         {
-            $db->query("UPDATE customer SET name='$name',surname='$surname',phone='$phone',email='$email',password='$password',country='$country',state='$state',city='$city',occupation='$occupation',kinname='$kinname',kinsurname='$kinsurname',organization='$organization',zip='$zip',lastseen='$lastseen',dateofbirth='$dateofbirth',monthofbirth='$monthofbirth',dayofbirth='$dayofbirth',newsletter='$newsletter',active='$active',status='$status',sex='$sex',guestid='$guestid',salutation='$salutation',profilepic='$profilepic',idtype='$idtype',idnumber='$idnumber',idimage='$idimage',street='$street',kinaddress='$kinaddress',destination='$destination',origination='$origination',guest='$guest',bank='$bank',accountname='$accountname',accountnumber='$accountnumber',wallet='$wallet',subscription='$subscription',corporate='$corporate',corporate_request='$copRequest',corporate_response='$copResponse' WHERE customerid = '$id'");
+            $db->query("UPDATE customer SET `name`='$name',surname='$surname',phone='$phone',email='$email',`password`='$password',country='$country',`state`='$state',city='$city',occupation='$occupation',kinname='$kinname',kinsurname='$kinsurname',organization='$organization',zip='$zip',lastseen='$lastseen',dateofbirth='$dateofbirth',monthofbirth='$monthofbirth',dayofbirth='$dayofbirth',newsletter='$newsletter',active='$active',`status`='$status',sex='$sex',guestid='$guestid',salutation='$salutation',profilepic='$profilepic',idtype='$idtype',idnumber='$idnumber',idimage='$idimage',street='$street',kinaddress='$kinaddress',destination='$destination',origination='$origination',guest='$guest',bank='$bank',accountname='$accountname',accountnumber='$accountnumber',wallet='$wallet',subscription='$subscription',corporate='$corporate',corporate_request='$copRequest',corporate_response='$copResponse',`address`='$address',dob='$dob',internalEmail='$internalEmail' WHERE customerid = '$id'");
         }
         else
         {
@@ -200,7 +209,8 @@ class Customer
                 goto redo;
             }
             $this->Id = $id;
-            $db->query("INSERT INTO customer(customerid,created,name,surname,phone,email,password,country,state,city,occupation,kinname,kinsurname,organization,zip,lastseen,dateofbirth,monthofbirth,dayofbirth,newsletter,active,status,sex,guestid,salutation,profilepic,idtype,idnumber,idimage,street,kinaddress,destination,origination,guest,bank,accountname,accountnumber,wallet,subscription,corporate,corporate_request,corporate_response) VALUES ('$id','$created','$name','$surname','$phone','$email','$password','$country','$state','$city','$occupation','$kinname','$kinsurname','$organization','$zip','$lastseen','$dateofbirth','$monthofbirth','$dayofbirth','$newsletter','$active','$status','$sex','$guestid','$salutation','$profilepic','$idtype','$idnumber','$idimage','$street','$kinaddress','$destination','$origination','$guest','$bank','$accountname','$accountnumber','$wallet','$subscription','$corporate','$copRequest','$copResponse')");
+            $internalEmail = substr($this->Id, 0, 5) . '@tripmata.com';
+            $db->query("INSERT INTO customer(customerid,created,`name`,surname,phone,email,`password`,country,`state`,city,occupation,kinname,kinsurname,organization,zip,lastseen,dateofbirth,monthofbirth,dayofbirth,newsletter,active,`status`,sex,guestid,salutation,profilepic,idtype,idnumber,idimage,street,kinaddress,destination,origination,guest,bank,accountname,accountnumber,wallet,subscription,corporate,corporate_request,corporate_response,`address`,dob,internalEmail) VALUES ('$id','$created','$name','$surname','$phone','$email','$password','$country','$state','$city','$occupation','$kinname','$kinsurname','$organization','$zip','$lastseen','$dateofbirth','$monthofbirth','$dayofbirth','$newsletter','$active','$status','$sex','$guestid','$salutation','$profilepic','$idtype','$idnumber','$idimage','$street','$kinaddress','$destination','$origination','$guest','$bank','$accountname','$accountnumber','$wallet','$subscription','$corporate','$copRequest','$copResponse','$address','$dob','$internalEmail')");
         }
     }
 
@@ -230,8 +240,8 @@ class Customer
             $ret[$i] = new Customer($subscriber);
             $ret[$i]->Id = $row['customerid'];
             $ret[$i]->Created = new WixDate($row['created']);
-            $ret[$i]->Name = $row['name'];
-            $ret[$i]->Surname = $row['surname'];
+            $ret[$i]->Name = ucfirst($row['name']);
+            $ret[$i]->Surname = ucfirst($row['surname']);
             $ret[$i]->Phone = $row['phone'];
             $ret[$i]->Email = $row['email'];
             $ret[$i]->Password = $row['password'];
@@ -262,6 +272,9 @@ class Customer
             $ret[$i]->Destination = $row['destination'];
             $ret[$i]->Origination = $row['origination'];
             $ret[$i]->Guest = $row['guest'];
+            $ret[$i]->Address = $row['address'];
+            $ret[$i]->InternalEmail = $row['internalEmail'];
+            $ret[$i]->DOB = $row['dob'];
 
             $ret[$i]->Bank = $row['bank'];
             $ret[$i]->Accountname = $row['accountname'];
@@ -275,6 +288,7 @@ class Customer
 
             $i++;
         }
+        
         return $ret;
     }
 
@@ -290,8 +304,8 @@ class Customer
             $ret[$i] = new Customer($subscriber);
             $ret[$i]->Id = $row['customerid'];
             $ret[$i]->Created = new WixDate($row['created']);
-            $ret[$i]->Name = $row['name'];
-            $ret[$i]->Surname = $row['surname'];
+            $ret[$i]->Name = ucfirst($row['name']);
+            $ret[$i]->Surname = ucfirst($row['surname']);
             $ret[$i]->Phone = $row['phone'];
             $ret[$i]->Email = $row['email'];
             $ret[$i]->Password = $row['password'];
@@ -322,6 +336,9 @@ class Customer
             $ret[$i]->Destination = $row['destination'];
             $ret[$i]->Origination = $row['origination'];
             $ret[$i]->Guest = $row['guest'];
+            $ret[$i]->Address = $row['address'];
+            $ret[$i]->InternalEmail = $row['internalEmail'];
+            $ret[$i]->DOB = $row['dob'];
 
             $ret[$i]->Bank = $row['bank'];
             $ret[$i]->Accountname = $row['accountname'];
@@ -350,8 +367,8 @@ class Customer
             $ret[$i] = new Customer($subscriber);
             $ret[$i]->Id = $row['customerid'];
             $ret[$i]->Created = new WixDate($row['created']);
-            $ret[$i]->Name = $row['name'];
-            $ret[$i]->Surname = $row['surname'];
+            $ret[$i]->Name = ucfirst($row['name']);
+            $ret[$i]->Surname = ucfirst($row['surname']);
             $ret[$i]->Phone = $row['phone'];
             $ret[$i]->Email = $row['email'];
             $ret[$i]->Password = $row['password'];
@@ -382,6 +399,9 @@ class Customer
             $ret[$i]->Destination = $row['destination'];
             $ret[$i]->Origination = $row['origination'];
             $ret[$i]->Guest = $row['guest'];
+            $ret[$i]->Address = $row['address'];
+            $ret[$i]->InternalEmail = $row['internalEmail'];
+            $ret[$i]->DOB = $row['dob'];
 
             $ret[$i]->Bank = $row['bank'];
             $ret[$i]->Accountname = $row['accountname'];
@@ -410,8 +430,8 @@ class Customer
             $ret[$i] = new Customer($subscriber);
             $ret[$i]->Id = $row['customerid'];
             $ret[$i]->Created = new WixDate($row['created']);
-            $ret[$i]->Name = $row['name'];
-            $ret[$i]->Surname = $row['surname'];
+            $ret[$i]->Name = ucfirst($row['name']);
+            $ret[$i]->Surname = ucfirst($row['surname']);
             $ret[$i]->Phone = $row['phone'];
             $ret[$i]->Email = $row['email'];
             $ret[$i]->Password = $row['password'];
@@ -442,6 +462,9 @@ class Customer
             $ret[$i]->Destination = $row['destination'];
             $ret[$i]->Origination = $row['origination'];
             $ret[$i]->Guest = $row['guest'];
+            $ret[$i]->Address = $row['address'];
+            $ret[$i]->DOB = $row['dob'];
+            $ret[$i]->InternalEmail = $row['internalEmail'];
 
             $ret[$i]->Bank = $row['bank'];
             $ret[$i]->Accountname = $row['accountname'];
@@ -478,7 +501,16 @@ class Customer
         $this->Guest = is_a($guest, "Guest") ? $guest->Id : $guest;
     }
 
+    public static function CountAll(Subscriber $subscriber)
+    {
+        $db = $subscriber->GetDB();
+        $ret = array();
+        $i = 0;
 
+        $ret = $db->query("SELECT id FROM customer")->num_rows;
+        $db->close();
+        return $ret;
+    }
 
     //Hand crafted
     public static function EmailExist($email)
@@ -547,6 +579,7 @@ class Customer
             $row = $res->fetch_assoc();
             $ret->Initialize($row['customerid']);
         }
+        
         return $ret;
     }
 

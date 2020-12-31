@@ -59,6 +59,9 @@ class CustomerByProperty
     private $subscriber = null;
 
     public $isLodged = false;
+    public $isBanned = false;
+    public $isActivated = false;
+    public $Activity = [];
 
     public $Wallet = 0.0;
     public $Subscription = "";
@@ -140,6 +143,7 @@ class CustomerByProperty
                 $this->Bank = $row['bank'];
                 $this->Accountname = $row['accountname'];
                 $this->Accountnumber = $row['accountnumber'];
+                $this->isBanned = self::isCustomerBanned($row['customerid']);
 
                 $this->Corporate = Convert::ToBool($row['corporate']);
                 $this->Wallet = doubleval($row['wallet']);
@@ -148,6 +152,10 @@ class CustomerByProperty
                 $this->Corporateresponse = Convert::ToBool($row['corporate_response']);
 
                 $this->CustomerDetails();
+                $this->CustomerActivities();
+
+                // has customer created a password
+                if ($row['password'] != '') $this->isActivated = true;
             }
         }
     }
@@ -202,7 +210,7 @@ class CustomerByProperty
         $subscription = Convert::ToInt($this->Subscription);
         $copRequest = Convert::ToInt($this->Corporaterequest);
         $copResponse = Convert::ToInt($this->Corporateresponse);
-        $property = $_REQUEST['property'];
+        $property = $_REQUEST['propertyid'];
 
         if($res = $db->query("SELECT customerid FROM customerByProperty WHERE customerid='$id' AND propertyid = '$id'")->num_rows > 0)
         {
@@ -228,6 +236,34 @@ class CustomerByProperty
             // add to property
             $db->query("INSERT INTO customerByProperty (customerid, propertyid) VALUES ('$id', '$property')");
         }
+    }
+
+    // check if customer has been banned
+    private static function isCustomerBanned(string $customerId) : bool
+    {
+        // make requeest
+        $db = DB::GetDB();
+
+        // get property id
+        $property = $_REQUEST['propertyid'];
+
+        // @var bool $isBanned
+        $isBanned = false;
+
+        // check record
+        $data = $db->query("SELECT isBaned FROM customerByProperty WHERE customerid = '$customerId' AND propertyid = '$property'");
+
+        // are we good ??
+        if ($data->num_rows > 0)
+        {
+            $data = $data->fetch_assoc();
+
+            // check now
+            $isBanned = $data['isBaned'] == 1 ? true : false;
+        }
+
+        // return bool
+        return $isBanned;
     }
 
     // get property id
@@ -373,6 +409,7 @@ class CustomerByProperty
                 $ret[$i]->DOB = $row['dob'];
                 $ret[$i]->Address = $row['address'];
                 $ret[$i]->InternalEmail = $row['internalEmail'];
+                $ret[$i]->isBanned = self::isCustomerBanned($row['customerid']);
 
                 $ret[$i]->Bank = $row['bank'];
                 $ret[$i]->Accountname = $row['accountname'];
@@ -383,6 +420,12 @@ class CustomerByProperty
                 $ret[$i]->Subscription = $row['subscription'];
                 $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
                 $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
+
+
+                $ret[$i]->CustomerActivities();
+
+                // has customer created a password
+                if ($row['password'] != '') $ret[$i]->isActivated = true;
 
                 $i++;
 
@@ -460,6 +503,7 @@ class CustomerByProperty
                 $ret[$i]->DOB = $row['dob'];
                 $ret[$i]->Address = $row['address'];
                 $ret[$i]->InternalEmail = $row['internalEmail'];
+                $ret[$i]->isBanned = self::isCustomerBanned($row['customerid']);
 
                 $ret[$i]->Bank = $row['bank'];
                 $ret[$i]->Accountname = $row['accountname'];
@@ -470,6 +514,11 @@ class CustomerByProperty
                 $ret[$i]->Subscription = $row['subscription'];
                 $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
                 $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
+
+                $ret[$i]->CustomerActivities();
+
+                // has customer created a password
+                if ($row['password'] != '') $ret[$i]->isActivated = true;
 
                 $i++;
             
@@ -527,6 +576,7 @@ class CustomerByProperty
                 $ret[$i]->DOB = $row['dob'];
                 $ret[$i]->Address = $row['address'];
                 $ret[$i]->InternalEmail = $row['internalEmail'];
+                $ret[$i]->isBanned = self::isCustomerBanned($row['customerid']);
 
                 $ret[$i]->Bank = $row['bank'];
                 $ret[$i]->Accountname = $row['accountname'];
@@ -537,6 +587,11 @@ class CustomerByProperty
                 $ret[$i]->Subscription = $row['subscription'];
                 $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
                 $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
+
+                $ret[$i]->CustomerActivities();
+
+                // has customer created a password
+                if ($row['password'] != '') $ret[$i]->isActivated = true;
 
                 $i++;
             
@@ -594,6 +649,7 @@ class CustomerByProperty
                 $ret[$i]->DOB = $row['dob'];
                 $ret[$i]->Address = $row['address'];
                 $ret[$i]->InternalEmail = $row['internalEmail'];
+                $ret[$i]->isBanned = self::isCustomerBanned($row['customerid']);
 
                 $ret[$i]->Bank = $row['bank'];
                 $ret[$i]->Accountname = $row['accountname'];
@@ -604,6 +660,11 @@ class CustomerByProperty
                 $ret[$i]->Subscription = $row['subscription'];
                 $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
                 $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
+
+                $ret[$i]->CustomerActivities();
+
+                // has customer created a password
+                if ($row['password'] != '') $ret[$i]->isActivated = true;
 
                 $i++;
 
@@ -746,5 +807,40 @@ class CustomerByProperty
 
         $this->hasProperty = $db->query("SELECT id FROM property WHERE `owner`='$id'")->num_rows > 0 ? true : false;
         $this->hasVehicle = $db->query("SELECT id FROM vehicle WHERE `owner`='$id'")->num_rows > 0 ? true : false;
+    }
+
+    public function CustomerActivities()
+    {
+        // load database 
+        $db = DB::GetDB();
+
+        // try get customers 
+        /**
+         * 1. reservations
+         * 2. lodging
+         * 3. no show's
+         * 4. reviews
+         */
+
+        // get the customer id
+        $customerId = $this->Id;
+
+        // get the property id
+        $property = self::getPropertyId();
+
+        // create object
+        $this->Activity = new stdClass();
+
+        // get reservations for this property
+        $this->Activity->Reservations = $db->query("SELECT * FROM reservation WHERE customer = '$customerId' AND property = '$property'")->num_rows;
+
+        // get lodging for this property
+        $this->Activity->Lodging = $db->query("SELECT * FROM lodging WHERE guest = '$customerId' AND propertyid = '$property'")->num_rows;
+
+        // get reviews for this property
+        $this->Activity->Reviews = $db->query("SELECT * FROM reviews WHERE customer = '$customerId' AND property = '$property'")->num_rows;
+
+        // get no show for this property
+        $this->Activity->NoShow = $db->query("SELECT * FROM reservation WHERE customer = '$customerId' AND property = '$property' AND noshow = 1")->num_rows;
     }
 }

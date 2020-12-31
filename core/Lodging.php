@@ -30,6 +30,7 @@ class Lodging
     public $Checkincount = 0;
     public $Checkoutcount = 0;
     public $Checkedout = false;
+    public $BaseTotal = 0;
 
     private $subscriber = null;
 
@@ -59,6 +60,7 @@ class Lodging
                 $this->Checkincount = Convert::ToInt($row['checkincount']);
                 $this->Checkoutcount = Convert::ToInt($row['checkoutcount']);
                 $this->Checkedout = Convert::ToBool($row['checkedout']);
+                $this->BaseTotal = doubleval($row['base_total']);
 
                 $guest = json_decode($row['subguest']);
                 for($i = 0; $i < count($guest); $i++)
@@ -72,8 +74,6 @@ class Lodging
                     }
                 }
 
-
-
                 $this->Rooms = [];
 
                 $r = json_decode($row['rooms']);
@@ -86,8 +86,6 @@ class Lodging
                         array_push($this->Rooms, $ro);
                     }
                 }
-
-
 
                 $this->Checkin = new WixDate($row['checkin']);
                 $this->Checkout = new WixDate($row['checkout']);
@@ -140,7 +138,7 @@ class Lodging
 
         $id = $this->Id;
         $created = time();
-        $guest = addslashes(is_a($this->Guest, "Customer") ? $this->Guest->Id : $this->Guest);
+        $guest = addslashes((is_a($this->Guest, "Customer") || is_a($this->Guest, "CustomerByProperty")) ? $this->Guest->Id : $this->Guest);
         $subguest = "[]";
         $rooms = "[]";
         $checkin = Convert::ToInt($this->Checkin);
@@ -161,11 +159,24 @@ class Lodging
         $checkincount = Convert::ToInt($this->Checkincount);
         $checkoutcount = Convert::ToInt($this->Checkoutcount);
         $checkedout = Convert::ToInt($this->Checkedout);
+        $baseTotal = doubleval($this->BaseTotal);
 
+
+        // manage booking number
+        if ($this->Bookingnumber == '')
+        {
+            $booking = strtoupper(Random::GenerateId(10));
+            while($db->query("SELECT lodgingid FROM lodging WHERE booking='$booking'")->num_rows > 0)
+            {
+                $booking = strtoupper(Random::GenerateId(10));
+            }
+            $this->Bookingnumber = $booking;
+        }
 
         $booking = addslashes($this->Bookingnumber);
 
         $bills = doubleval($this->Bills);
+
 
 
         $ck = [];
@@ -194,7 +205,7 @@ class Lodging
 
         if($res = $db->query("SELECT lodgingid FROM lodging WHERE lodgingid='$id'")->num_rows > 0)
         {
-            $db->query("UPDATE lodging SET guest='$guest',subguest='$subguest',rooms='$rooms',checkin='$checkin',checkout='$checkout',days='$days',adults='$adults',children='$children',pet='$pet',paid='$paid',total='$total',taxes='$taxes',discount='$discount',paidamount='$paidamount',roomcategory='$roomcategory',user='$user',checkouts='$checkouts',bills='$bills',booking='$booking',checkincount='$checkincount',checkoutcount='$checkoutcount',checkedout='$checkedout' WHERE lodgingid = '$id'");
+            $db->query("UPDATE lodging SET guest='$guest',subguest='$subguest',rooms='$rooms',checkin='$checkin',checkout='$checkout',`days`='$days',adults='$adults',children='$children',pet='$pet',paid='$paid',total='$total',taxes='$taxes',discount='$discount',paidamount='$paidamount',roomcategory='$roomcategory',user='$user',checkouts='$checkouts',bills='$bills',booking='$booking',checkincount='$checkincount',checkoutcount='$checkoutcount',checkedout='$checkedout',base_total='$baseTotal' WHERE lodgingid = '$id'");
         }
         else
         {
@@ -205,7 +216,7 @@ class Lodging
                 goto redo;
             }
             $this->Id = $id;
-            $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,days,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property')");
+            $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal')");
         }
     }
 
@@ -231,60 +242,102 @@ class Lodging
 
     public static function Search(Subscriber $subscriber, $term='')
     {
+        // get db
         $db = $subscriber->GetDB();
+
+        // get array
         $ret = array();
-        $i = 0;
-        $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
 
-        $res = $db->query("SELECT lodgingid FROM lodging WHERE guest LIKE '%$term%' OR subguest LIKE '%$term%' OR rooms LIKE '%$term%' OR checkin LIKE '%$term%' OR checkout LIKE '%$term%' OR days LIKE '%$term%' OR adults LIKE '%$term%' OR children LIKE '%$term%' OR pet LIKE '%$term%' OR paid LIKE '%$term%' OR total LIKE '%$term%' OR taxes LIKE '%$term%' OR discount LIKE '%$term%' OR paidamount LIKE '%$term%' OR roomcategory LIKE '%$term%' OR user LIKE '%$term%' OR checkouts LIKE '%$term%'");
-        while(($row = $res->fetch_assoc()) != null)
+        // check customer information
+        $res = $db->query("SELECT * FROM customer WHERE email LIKE '%$term%' OR `name` LIKE '%$term%' OR surname LIKE '%$term%' OR phone LIKE '%$term%' OR email LIKE '%$term%'");
+
+        // create function
+        $searchFunction = function(string $term) use ($subscriber, $db, &$ret)
         {
-            if ($row['propertyid'] == $property) :
+            $i = 0;
+            $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
 
-                $ret[$i] = new Lodging($subscriber);
-                $ret[$i]->Id = $row['lodgingid'];
-                $ret[$i]->Created = new WixDate($row['created']);
-                $ret[$i]->Guest = new CustomerByProperty($subscriber);
-                $ret[$i]->Guest->Initialize($row['guest']);
-                $ret[$i]->Subguest = json_decode($row['subguest']);
-                $ret[$i]->Rooms = [];
+            $res = $db->query("SELECT * FROM lodging WHERE guest LIKE '%$term%' OR subguest LIKE '%$term%' OR rooms LIKE '%$term%' OR checkin LIKE '%$term%' OR checkout LIKE '%$term%' OR days LIKE '%$term%' OR adults LIKE '%$term%' OR children LIKE '%$term%' OR pet LIKE '%$term%' OR paid LIKE '%$term%' OR total LIKE '%$term%' OR taxes LIKE '%$term%' OR discount LIKE '%$term%' OR paidamount LIKE '%$term%' OR roomcategory LIKE '%$term%' OR user LIKE '%$term%' OR checkouts LIKE '%$term%'");
+            while (($row = $res->fetch_assoc()) != null)
+            {
+                if ($row['propertyid'] == $property) :
 
-                $ret[$i]->Checkincount = Convert::ToInt($row['checkincount']);
-                $ret[$i]->Checkoutcount = Convert::ToInt($row['checkoutcount']);
-                $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
+                    $ret[$i] = new Lodging($subscriber);
+                    $ret[$i]->Id = $row['lodgingid'];
+                    $ret[$i]->Created = new WixDate($row['created']);
+                    $ret[$i]->Guest = new CustomerByProperty($subscriber);
+                    $ret[$i]->Guest->Initialize($row['guest']);
+                    $ret[$i]->Subguest = json_decode($row['subguest']);
+                    $ret[$i]->Rooms = [];
 
-                $r = json_decode($row['rooms']);
+                    $ret[$i]->Checkincount = Convert::ToInt($row['checkincount']);
+                    $ret[$i]->Checkoutcount = Convert::ToInt($row['checkoutcount']);
+                    $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
 
-                if(is_array($r))
-                {
-                    for($j = 0; $j < count($r); $j++)
+                    $r = json_decode($row['rooms']);
+
+                    if(is_array($r))
                     {
-                        $ro = new Lodgepixel($subscriber, $r[$j]);
-                        array_push($ret[$i]->Rooms, $ro);
+                        for($j = 0; $j < count($r); $j++)
+                        {
+                            $ro = new Lodgepixel($subscriber, $r[$j]);
+                            array_push($ret[$i]->Rooms, $ro);
+                        }
                     }
-                }
 
-                $ret[$i]->Checkin = new WixDate($row['checkin']);
-                $ret[$i]->Checkout = new WixDate($row['checkout']);
-                $ret[$i]->Days = Convert::ToInt($row['days']);
-                $ret[$i]->Adults = Convert::ToInt($row['adults']);
-                $ret[$i]->Children = Convert::ToInt($row['children']);
-                $ret[$i]->Pet = Convert::ToBool($row['pet']);
-                $ret[$i]->Paid = Convert::ToBool($row['paid']);
-                $ret[$i]->Total = doubleval($row['total']);
-                $ret[$i]->Taxes = doubleval($row['taxes']);
-                $ret[$i]->Discount = doubleval($row['discount']);
-                $ret[$i]->Paidamount = doubleval($row['paidamount']);
-                $ret[$i]->Roomcategory = json_decode($row['roomcategory']);
-                $ret[$i]->User = $row['user'];
-                $ret[$i]->Checkouts = json_decode($row['checkouts']);
-                $ret[$i]->Bills = doubleval($row['bills']);
-                $ret[$i]->Bookingnumber = $row['booking'];
-                $i++;
+                    $ret[$i]->Checkin = new WixDate($row['checkin']);
+                    $ret[$i]->Checkout = new WixDate($row['checkout']);
+                    $ret[$i]->Days = Convert::ToInt($row['days']);
+                    $ret[$i]->Adults = Convert::ToInt($row['adults']);
+                    $ret[$i]->Children = Convert::ToInt($row['children']);
+                    $ret[$i]->Pet = Convert::ToBool($row['pet']);
+                    $ret[$i]->Paid = Convert::ToBool($row['paid']);
+                    $ret[$i]->Total = doubleval($row['total']);
+                    $ret[$i]->Taxes = doubleval($row['taxes']);
+                    $ret[$i]->Discount = doubleval($row['discount']);
+                    $ret[$i]->Paidamount = doubleval($row['paidamount']);
+                    $ret[$i]->Roomcategory = json_decode($row['roomcategory']);
+                    $ret[$i]->User = $row['user'];
+                    $ret[$i]->Checkouts = json_decode($row['checkouts']);
+                    $ret[$i]->Bills = doubleval($row['bills']);
+                    $ret[$i]->Bookingnumber = $row['booking'];
+                    $i++;
 
-            endif;
+                endif;
+            }
+        };
+
+        // check fullname
+        if ($res->num_rows == 0)
+        {
+            $termArray = explode(' ', $term);
+
+            // check length
+            if (count($termArray) == 2)
+            {
+                // get first name last name
+                list($name, $lastname) = $termArray;
+
+                // check now
+                $res = $db->query("SELECT * FROM customer WHERE `name` LIKE '%$name%' OR surname LIKE '%$lastname%'");
+            }
         }
 
+        // Check now
+        if ($res->num_rows > 0)
+        {
+            // run loop
+            while (($row = $res->fetch_assoc()) != null)
+            {
+                $searchFunction($row['customerid']);
+            }
+        }
+        else
+        {
+            $searchFunction($term);
+        }
+
+        // return array
         return $ret;
     }
 
@@ -452,7 +505,6 @@ class Lodging
     }
 
     //Hand crafted methods
-
     public static function inHouseCount(Subscriber $subscriber)
     {
         $db = $subscriber->GetDB();
@@ -645,6 +697,139 @@ class Lodging
         return $ret;
     }
 
+    public static function CalculateAndAddExtraFee(Subscriber $subscriber, $lodgingID)
+    {
+        // get all overdues
+        $lodging = new Lodging($subscriber);
+        $lodging->Initialize($lodgingID);
+
+        // get today
+        $today = new DateTime();
+
+        // get db
+        $db = DB::GetDB();
+
+        // add bill
+        $bill = 0;
+
+        // get propertyid
+        $propertyid = addslashes($_REQUEST['propertyid']);
+
+        // get property information
+        $property = $db->query("SELECT * FROM property WHERE propertyid = '$propertyid'")->fetch_assoc();
+
+        // ok
+        // get days diffrence
+        $checkOut = new DateTime($lodging->Checkout->Month . '/' . $lodging->Checkout->Day . '/' . $lodging->Checkout->Year);
+
+        // calculate diff
+        $diff = $today->diff($checkOut);
+
+        // get days
+        $days = $diff->d;
+
+        // get hours
+        $hours = $diff->h;
+
+        // calculate for days
+        if ($days > 0)
+        {
+            for ($x=0; $x < $days; $x++)
+            {
+                foreach ($lodging->Rooms as $room)
+                {
+                    if ($room->Checkedout == false) $bill += floatval($room->Category->Price);
+                }
+            }
+        }
+
+        // calculate for hours
+        if ($hours >= 12)
+        {
+            if ($property['late_checkout_rules'] != null)
+            {
+                // get array
+                $checkOutRule = json_decode($property['late_checkout_rules']);
+
+                // get hour
+                $hour = intval(date('H'));
+
+                // get minute
+                $min = intval(date('i'));
+                
+                // run
+                foreach ($checkOutRule as $rule)
+                {
+                    // get from 
+                    list($fromHour, $fromMin) = explode(':', $rule->from);
+
+                    // get to
+                    list($toHour, $toMin) = explode(':', $rule->to);
+
+                    // make int
+                    $fromHour = intval($fromHour);
+                    $toHour = intval($toHour);
+
+                    // make int 
+                    $fromMin = intval($fromMin);
+                    $toMin = intval($toMin);
+
+                    // adjust from hour
+                    $fromHour = $fromHour < 12 ? ($fromHour + 12) : $fromHour;
+
+                    // adjust to hour
+                    $toHour = $toHour < 12 ? ($toHour + 12) : $toHour;
+
+                    // check now
+                    if ($hour >= $fromHour && $hour <= $toHour)
+                    {
+                        // @var bool $canBill
+                        $canBill = true;
+
+                        // check end
+                        if ($hour == $toHour)
+                        {
+                            // check minute
+                            if ($min > $toMin)
+                            {
+                                $canBill = false;
+                            }
+                        }
+                        elseif ($hour == $fromHour)
+                        {
+                            if ($min < $fromMin)
+                            {
+                                $canBill = false;
+                            }
+                        }
+
+                        // can we bill
+                        if ($canBill)
+                        {
+                            $bill += floatval($rule->amount);
+                        }
+                    }
+                }
+            }
+        }
+
+        // check base total
+        if ($lodging->BaseTotal == 0)
+        {
+            // update base total with total
+            $lodging->BaseTotal = $lodging->Total;
+        }
+
+        // update total
+        $lodging->Total = ($bill + $lodging->BaseTotal);
+
+        // save now
+        $lodging->Save();
+
+        // return bill
+        return $lodging->Total;
+    }
+
     public static function toDaysCheckin(Subscriber $subscriber)
     {
         $db = $subscriber->GetDB();
@@ -793,7 +978,7 @@ class Lodging
         $time = mktime(12,0,1,date('n'),date('j'),date('Y'));
 
 
-        if($duedate == "")
+        if ($duedate == "")
         {
             if($filter === "all")
             {
@@ -814,7 +999,10 @@ class Lodging
         }
         else
         {
-            $res = $db->query("SELECT * FROM lodging WHERE checkout='$dDate' AND propertyid = '$property' ORDER BY id DESC");
+            $extra = $_REQUEST['dueDateTo'] == '' ? "checkout='$dDate' AND" : '';
+
+            // make request
+            $res = $db->query("SELECT * FROM lodging WHERE $extra propertyid = '$property' ORDER BY id DESC");
         }
 
         while(($row = $res->fetch_assoc()) != null)
@@ -831,6 +1019,12 @@ class Lodging
                 if ($filter === 'overdue-departure') :
                     if (time() < $time) $continue = false;
                 endif;
+
+                // found a range?
+                if ($_REQUEST['dueDateTo'] != '')
+                {
+                    $continue = self::canShowReservation($row);
+                }
 
                 // can we continue
                 if ($continue === true) :
@@ -921,7 +1115,7 @@ class Lodging
         $db = $subscriber->GetDB();
         $date = strtotime(date("m/d/Y"));
         $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
-        $res = $db->query("SELECT * FROM lodging WHERE checkout = '$date' AND propertyid = '$property'")->num_rows;
+        $res = $db->query("SELECT * FROM lodging WHERE checkout = '$date' AND checkedout = 0 AND propertyid = '$property'")->num_rows;
         $db->close();
         return $res;
     }
@@ -998,5 +1192,48 @@ class Lodging
 
 
         die;
+    }
+
+    // can we show this reservation?
+    private static function canShowReservation($row) : bool
+    {
+        // @var bool $canAdd
+        $canAdd = false;
+
+        // get date
+        $dateTime = new DateTime((isset($_REQUEST['dueDate']) ? $_REQUEST['dueDate'] : ''));
+
+        // created date
+        //if (date('d/m/Y', $row['created']) == $dateTime->format('d/m/Y')) $canAdd = true;
+        // get last 30 days
+        $last30Days = strtotime('today - 30 days');
+
+        // manage range
+        if (isset($_REQUEST['dueDate']) && isset($_REQUEST['dueDateTo']))
+        {
+            // can we add
+            if ($canAdd === false)
+            {
+                // only proceed if date range exists
+                if ($_REQUEST['dueDate'] != '' && $_REQUEST['dueDateTo'] != '')
+                {
+                    // get date time 2
+                    $dateTime2 = new DateTime(date('m/d/Y', $row['checkin']));
+
+                    // build time for range
+                    $rangeTime = new DateTime($_REQUEST['dueDateTo']);
+
+                    // check now
+                    if ($dateTime2->getTimestamp() <= $rangeTime->getTimestamp()) $canAdd = true;
+                }
+                else
+                {
+                    if (intval($row['checkin']) >= $last30Days) $canAdd = true;
+                }
+            }
+        }
+
+        // return bool
+        return $canAdd;
     }
 }

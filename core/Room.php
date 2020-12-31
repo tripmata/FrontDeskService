@@ -100,19 +100,23 @@ class Room
 
         $ret = array();
         $i = 0;
+        $property = $_REQUEST['propertyid'];
 
-        $res = $db->query("SELECT * FROM room WHERE number LIKE '%$term%' OR category LIKE '%$term%' OR status LIKE '%$term%'");
+        $res = $db->query("SELECT * FROM room WHERE `number` LIKE '%$term%' OR category LIKE '%$term%' OR `status` LIKE '%$term%'");
         while(($row = $res->fetch_assoc()) != null)
         {
-            $ret[$i] = new Room($subscriber);
-            $ret[$i]->Id = $row['roomid'];
-            $ret[$i]->Created = new WixDate($row['created']);
-            $ret[$i]->Number = $row['number'];
-            $ret[$i]->Category = new Roomcategory($subscriber);
-            $ret[$i]->Category->Initialize($row['category']);
-            $ret[$i]->Status = $row['status'];
-            $ret[$i]->Features = json_decode($row['features']);
-            $i++;
+            if ($row['propertyid'] == $property)
+            {
+                $ret[$i] = new Room($subscriber);
+                $ret[$i]->Id = $row['roomid'];
+                $ret[$i]->Created = new WixDate($row['created']);
+                $ret[$i]->Number = $row['number'];
+                $ret[$i]->Category = new Roomcategory($subscriber);
+                $ret[$i]->Category->Initialize($row['category']);
+                $ret[$i]->Status = $row['status'];
+                $ret[$i]->Features = json_decode($row['features']);
+                $i++;
+            }
         }
         return $ret;
     }
@@ -123,7 +127,16 @@ class Room
         $ret = array();
         $i = 0;
 
-        $res = $db->query("SELECT * FROM room WHERE ".$field." ='$term'");
+        $extra = '';
+        $property = $_REQUEST['propertyid'];
+
+        // check job
+        if (isset($_REQUEST['job']) && $_REQUEST['job'] == 'get pos items')
+        {
+            $extra = 'AND `status` = "1"';
+        }
+
+        $res = $db->query("SELECT * FROM room WHERE ".$field." ='$term' AND propertyid = '$property' $extra");
         while(($row = $res->fetch_assoc()) != null)
         {
             $ret[$i] = new Room($subscriber);
@@ -144,8 +157,9 @@ class Room
         $db = $subscriber->GetDB();
         $ret = array();
         $i = 0;
+        $property = $_REQUEST['propertyid'];
 
-        $res = $db->query("SELECT * FROM room ORDER BY ".$field." ".$order."");
+        $res = $db->query("SELECT * FROM room ORDER BY ".$field." ".$order." AND propertyid = '$property'");
         while(($row = $res->fetch_assoc()) != null)
         {
             $ret[$i] = new Room($subscriber);
@@ -166,8 +180,9 @@ class Room
         $db = $subscriber->GetDB();
         $ret = array();
         $i = 0;
+        $property = $_REQUEST['propertyid'];
 
-        $res = $db->query("SELECT * FROM room");
+        $res = $db->query("SELECT * FROM room AND propertyid = '$property'");
         while(($row = $res->fetch_assoc()) != null)
         {
             $ret[$i] = new Room($subscriber);
@@ -186,7 +201,8 @@ class Room
     public static function RoomCount($subscriber)
     {
         $db = $subscriber->GetDB();
-        $i = $db->query("SELECT * FROM room")->num_rows;
+        $property = $_REQUEST['propertyid'];
+        $i = $db->query("SELECT * FROM room AND propertyid = '$property'")->num_rows;
         $db->close();
         return $i;
     }
@@ -194,7 +210,8 @@ class Room
     public static function Exist(Subscriber $subscriber, $number, $category)
     {
         $db = $subscriber->GetDB();
-        $res = $db->query("SELECT number FROM room WHERE number='$number' AND category='$category'");
+        $property = $_REQUEST['propertyid'];
+        $res = $db->query("SELECT number FROM room WHERE `number`='$number' AND category='$category' AND propertyid = '$property'");
         $db->close();
         return $res->num_rows > 0 ? true : false;
     }

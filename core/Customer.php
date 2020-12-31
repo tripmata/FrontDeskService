@@ -59,6 +59,7 @@ class Customer
     private $subscriber = null;
 
     public $isLodged = false;
+    public $isActivated = false;
 
     public $Wallet = 0.0;
     public $Subscription = "";
@@ -140,6 +141,9 @@ class Customer
                 $this->Corporateresponse = Convert::ToBool($row['corporate_response']);
 
                 $this->CustomerDetails();
+
+                // has customer created a password
+                if ($row['password'] != '') $this->isActivated = true;
             }
         }
     }
@@ -286,6 +290,9 @@ class Customer
             $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
             $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
 
+            // has customer created a password
+            if ($row['password'] != '') $ret[$i]->isActivated = true;
+
             $i++;
         }
         
@@ -350,6 +357,9 @@ class Customer
             $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
             $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
 
+            // has customer created a password
+            if ($row['password'] != '') $ret[$i]->isActivated = true;
+
             $i++;
         }
         return $ret;
@@ -413,6 +423,9 @@ class Customer
             $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
             $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
 
+            // has customer created a password
+            if ($row['password'] != '') $ret[$i]->isActivated = true;
+
             $i++;
         }
         return $ret;
@@ -425,7 +438,7 @@ class Customer
         $i = 0;
 
         $res = $db->query("SELECT * FROM customer");
-        while(($row = $res->fetch_assoc()) != null)
+        while (($row = $res->fetch_assoc()) != null)
         {
             $ret[$i] = new Customer($subscriber);
             $ret[$i]->Id = $row['customerid'];
@@ -475,6 +488,9 @@ class Customer
             $ret[$i]->Subscription = $row['subscription'];
             $ret[$i]->Corporaterequest = Convert::ToBool($row['corporate_request']);
             $ret[$i]->Corporateresponse = Convert::ToBool($row['corporate_response']);
+
+            // has customer created a password
+            if ($row['password'] != '') $ret[$i]->isActivated = true;
 
             $i++;
         }

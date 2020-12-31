@@ -44,7 +44,6 @@
             $this->subscriber = $subscriber;
 		}
 
-
 		public function Initialize($arg=null)
         {
             if($arg != null)
@@ -108,11 +107,11 @@
 			$pastries = addslashes(json_encode($this->Pastries));
 			$laundry = addslashes(json_encode($this->Laundry));
 			$pool = addslashes(json_encode($this->Pool));
-			$services = addslashes(json_encode($this->Services));
+            $services = addslashes(json_encode($this->Services));
 
 			if($res = $db->query("SELECT couponid FROM coupon WHERE couponid='$id'")->num_rows > 0)
 			{
-				$db->query("UPDATE coupon SET title='$title',code='$code',bypercentage='$bypercentage',expires='$expires',used='$used',status='$status',expirydate='$expirydate',value='$value',usecount='$usecount',booking='$booking',food='$food',drinks='$drinks',pastries='$pastries',laundry='$laundry',pool='$pool',services='$services' WHERE couponid = '$id'");
+				$db->query("UPDATE coupon SET title='$title',code='$code',bypercentage='$bypercentage',expires='$expires',used='$used',`status`='$status',expirydate='$expirydate',`value`='$value',usecount='$usecount',booking='$booking',food='$food',drinks='$drinks',pastries='$pastries',laundry='$laundry',`pool`='$pool',services='$services' WHERE couponid = '$id'");
 			}
 			else
 			{
@@ -123,7 +122,7 @@
 					goto redo;
 				}
 				$this->Id = $id;
-				$db->query("INSERT INTO coupon(couponid,created,title,code,bypercentage,expires,used,status,expirydate,value,usecount,booking,food,drinks,pastries,laundry,pool,services) VALUES ('$id','$created','$title','$code','$bypercentage','$expires','$used','$status','$expirydate','$value','$usecount','$booking','$food','$drinks','$pastries','$laundry','$pool','$services')");
+				$db->query("INSERT INTO coupon(couponid,created,title,code,bypercentage,expires,used,`status`,expirydate,`value`,usecount,booking,food,drinks,pastries,laundry,`pool`,services) VALUES ('$id','$created','$title','$code','$bypercentage','$expires','$used','$status','$expirydate','$value','$usecount','$booking','$food','$drinks','$pastries','$laundry','$pool','$services')");
 			}
 		}
 
@@ -246,10 +245,7 @@
 			return $ret;
 		}
 
-
-
 		//Hand crafted
-
         public static function Usedcoupon(Subscriber $subscriber, $searchterm)
         {
             $db = $subscriber->GetDB();
@@ -383,7 +379,6 @@
             return $ret;
         }
 
-
         public static function Usedcount(Subscriber $subscriber)
         {
             $db = $subscriber->GetDB();
@@ -446,5 +441,72 @@
                 $ret->Services = json_decode($row['services']);
             }
             return $ret;
+        }
+
+        public static function applyCoupon(string $bookingNumber)
+        {
+            if (isset($_REQUEST['coupons']))
+            {
+                // @var string $coupons
+                $coupons = explode(',', $_REQUEST['coupons']);
+
+                // are we good ??
+                if (count($coupons) > 0)
+                {
+                    // load subscriber
+                    $subscriber = new Subscriber();
+
+                    // load coupons
+                    foreach ($coupons as $coupon)
+                    {
+                        // create instance
+                        $couponClass = new Coupon($subscriber);
+                        $couponClass->Initialize($coupon);
+
+                        // not expired
+                        if ($couponClass->Expired == false && $couponClass->Used == false)
+                        {
+                            // subtract
+                            $couponClass->Usecount--;
+
+                            // are we done
+                            if ($couponClass->Usecount <= 0) {
+
+                                // all done
+                                $couponClass->Usecount = 0;
+                                $couponClass->Used = true;
+                            }
+
+                            // save 
+                            $couponClass->Save();
+
+                            // record usage
+                            self::recordUsage($coupon, $bookingNumber);
+                        }
+                    }
+                }
+            }
+        }
+
+        public static function recordUsage(string $couponId, string $bookingNumber)
+        {
+            // load db
+            $db = DB::GetDB();
+
+            // get discount
+            $discount = doubleval($_REQUEST['discount']);
+
+            // get user
+            $user = addslashes($_REQUEST['posuser']);
+
+            // get property ID
+            $propertyId = addslashes($_REQUEST['propertyid']);
+
+            // get date created
+            $created = time();
+
+            // save now
+            $db->query("INSERT INTO couponUsage (couponid,created,bookingid,amount,usedby,propertyid) VALUES ('$couponId', '$created', '$bookingNumber', '$discount', '$user', '$propertyId')");
+
         }
 	}

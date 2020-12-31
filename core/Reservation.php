@@ -28,7 +28,11 @@
 		
 		public $Noshow = 0;
 
-		public $Status = 0;
+        public $Status = 0;
+        public $CanMarkNoShow = false;
+        public $UnconfirmedNoShow = 0;
+        public $IsOnline = 0;
+        public $RefundPaymentCondition = '';
 
 
 		public $Cancelled = false;
@@ -78,19 +82,24 @@
 					$this->Activated = Convert::ToBool($row['activated']);
                     $this->Checkedin = Convert::ToBool($row['checkedin']);
                     $this->Checkedout = Convert::ToBool($row['checkedout']);
+                    $this->CanMarkNoShow = self::canMarkAsNoShow($row);
+                    $this->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
+                    $this->IsOnline = intval($row['isonline']);
+                    $this->RefundPaymentCondition = $row['refundPaymentCondition'];
 
-					if((($this->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($this->Activated === false))
+					if ((($this->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($this->Activated === false))
                     {
                         $this->Status = 3;
                     }
-					else if(($this->Activated === true) && (($this->Checkoutdate->getValue() + (($this->Property->Checkouth + 1) * (60 * 60))) < time()))
+					elseif (($this->Activated === true) && (($this->Checkoutdate->getValue() + (($this->Property->Checkouth + 1) * (60 * 60))) < time()))
                     {
                         $this->Status = 1;
                     }
-					else if((($this->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($this->Activated === true))
+					elseif ((($this->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($this->Activated === true))
                     {
                         $this->Status = 2;
                     }
+
 					$this->Period = (($this->Checkoutdate->getValue() - $this->Checkindate->getValue()) / ((60 * 60) * 24));
 				}
 			}
@@ -124,6 +133,14 @@
 
             // update no show flag
             $noshow = $noshow == 1 ? 2 : $noshow;
+            $refundCondition = addslashes($this->RefundPaymentCondition);
+            $extra = '';
+
+            // payment not made
+            if ($this->IsOnline == 0 && $paidamount <= 0 && $noshow == 2) $noshow = 1;
+
+            // not online
+            if ($this->IsOnline == 0 && $paidamount > 0 && $noshow == 2) $extra = ', isConfirmedByGuest = 1 ';
 
 			if($booking == "")
             {
@@ -152,7 +169,7 @@
 
 			if($res = $db->query("SELECT reservationid FROM reservation WHERE reservationid='$id'")->num_rows > 0)
 			{
-				$db->query("UPDATE reservation SET property='$property',customer='$customer',checkindate='$checkindate',checkoutdate='$checkoutdate',rooms='$rooms',total='$total',discount='$discount',paidamount='$paidamount',children='$children',adult='$adult',paid='$paid',request='$request',booking='$booking',activated='$activated',checkedin='$checkedin',checkedout='$checkedout',noshow='$noshow',cancelled='$cancelled' WHERE reservationid = '$id'");
+				$db->query("UPDATE reservation SET property='$property',customer='$customer',checkindate='$checkindate',checkoutdate='$checkoutdate',rooms='$rooms',total='$total',discount='$discount',paidamount='$paidamount',children='$children',adult='$adult',paid='$paid',request='$request',booking='$booking',activated='$activated',checkedin='$checkedin',checkedout='$checkedout',noshow='$noshow',cancelled='$cancelled',refundPaymentCondition='$refundCondition' $extra WHERE reservationid = '$id'");
 			}
 			else
 			{
@@ -185,72 +202,114 @@
 
 		public static function Search($property, $term='')
 		{
-			$db = DB::GetDB();
-			$ret = array();
-			$i = 0;
+			// get db
+            $db = DB::GetDB();
 
-			$id = is_a($property, "Property") ? $property->Id : $property;
-
-			$res = $db->query("SELECT * FROM reservation WHERE customer LIKE '%$term%' OR checkindate LIKE '%$term%' OR checkoutdate LIKE '%$term%' OR rooms LIKE '%$term%' OR total LIKE '%$term%' OR discount LIKE '%$term%' OR paid LIKE '%$term%' OR children LIKE '%$term%' OR adult LIKE '%$term%' OR request LIKE '%$term%' ORDER BY id DESC");
-			while(($row = $res->fetch_assoc()) != null)
-			{
-                if ($row['property'] == $id) :
-
-                    $ret[$i] = new Reservation();
-                    $ret[$i]->Id = $row['reservationid'];
-                    $ret[$i]->Created = new WixDate($row['created']);
-                    $ret[$i]->Property = $row['property'];
-                    $ret[$i]->Customer = $row['customer'];
-                    $ret[$i]->Checkindate = $row['checkindate'];
-                    $ret[$i]->Checkoutdate = $row['checkoutdate'];
+            // get array
+            $ret = array();
+    
+            // check customer information
+            $res = $db->query("SELECT * FROM customer WHERE email LIKE '%$term%' OR `name` LIKE '%$term%' OR surname LIKE '%$term%' OR phone LIKE '%$term%'");
+    
+            // create function
+            $searchFunction = function(string $term) use ($property, $db, &$ret)
+            {
+                $i = 0;
+    
+                $id = is_a($property, "Property") ? $property->Id : $property;
+    
+                $res = $db->query("SELECT * FROM reservation WHERE customer LIKE '%$term%' OR checkindate LIKE '%$term%' OR checkoutdate LIKE '%$term%' OR rooms LIKE '%$term%' OR total LIKE '%$term%' OR discount LIKE '%$term%' OR paid LIKE '%$term%' OR children LIKE '%$term%' OR adult LIKE '%$term%' OR request LIKE '%$term%' OR booking LIKE '%$term%' ORDER BY id DESC");
+                while(($row = $res->fetch_assoc()) != null)
+                {
+                    if ($row['property'] == $id) :
+    
+                        $ret[$i] = new Reservation();
+                        $ret[$i]->Id = $row['reservationid'];
+                        $ret[$i]->Created = new WixDate($row['created']);
+                        $ret[$i]->Property = new Property($row['property']);
+                        $ret[$i]->Customer = new Customer($row['customer']);
+                        $ret[$i]->Checkindate = new WixDate($row['checkindate']);
+                        $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
+                        $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
+    
+                        $ret[$i]->Rooms = [];
+                        $r = json_decode($row['rooms']);
+    
+                        for($j = 0; $j < count($r); $j++)
+                        {
+                            $ro = new stdClass();
+                            $ro->Room = new Roomcategory(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));
+                            $ro->Room->Initialize($r[$j]->room);
+                            $ro->Number = $r[$j]->number;
+    
+                            array_push($ret[$i]->Rooms, $ro);
+                        }
+    
+                        $ret[$i]->Total = $row['total'];
+                        $ret[$i]->Discount = $row['discount'];
+                        $ret[$i]->Paidamount = $row['paidamount'];
+                        $ret[$i]->Children = $row['children'];
+                        $ret[$i]->Adult = $row['adult'];
+                        $ret[$i]->Paid = Convert::ToBool($row['paid']);
+                        $ret[$i]->Request = $row['request'];
+                        $ret[$i]->Bookingnumber = $row['booking'];
+                        $ret[$i]->Activated = Convert::ToBool($row['activated']);
+                        $ret[$i]->Checkedin = intval($row['checkedin']);
+                        $ret[$i]->Checkedout = intval($row['checkedout']);
+                        $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                        $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
+    
+                        if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
+                        {
+                            $ret[$i]->Status = 3;
+                        }
+                        else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
+                        {
+                            $ret[$i]->Status = 1;
+                        }
+                        else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
+                        {
+                            $ret[$i]->Status = 2;
+                        }
+                        $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
+                        $i++;
                     
-                    
-                    $ret[$i]->Rooms = [];
-                    $r = json_decode($row['rooms']);
-
-                    for($j = 0; $j < count($r); $j++)
-                    {
-                        $ro = new stdClass();
-                        $ro->Room = new Roomcategory(new Subscriber($ret[$i]->Property->Databasename, $ret[$i]->Property->DatabaseUser, $ret[$i]->Property->DatabasePassword));
-                        $ro->Room->Initialize($r[$j]->room);
-                        $ro->Number = $r[$j]->number;
-                        
-                        array_push($ret[$i]->Rooms, $ro);
-                    }
-
-                    
-                    $ret[$i]->Total = $row['total'];
-                    $ret[$i]->Discount = $row['discount'];
-                    $ret[$i]->Paidamount = $row['paidamount'];
-                    $ret[$i]->Children = $row['children'];
-                    $ret[$i]->Adult = $row['adult'];
-                    $ret[$i]->Paid = Convert::ToBool($row['paid']);
-                    $ret[$i]->Request = $row['request'];
-                    $ret[$i]->Bookingnumber = $row['booking'];
-                    $ret[$i]->Activated = Convert::ToBool($row['activated']);
-                    $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
-                    $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
-                    $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
-
-                    if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
-                    {
-                        $ret[$i]->Status = 3;
-                    }
-                    else if(($ret[$i]->Activated === true) && (($ret[$i]->Checkoutdate->getValue() + (($ret[$i]->Property->Checkouth + 1) * (60 * 60))) < time()))
-                    {
-                        $ret[$i]->Status = 1;
-                    }
-                    else if((($ret[$i]->Checkoutdate->getValue() + (24 * (60 * 60))) < time()) && ($ret[$i]->Activated === true))
-                    {
-                        $ret[$i]->Status = 2;
-                    }
-
-                    $ret[$i]->Period = (($ret[$i]->Checkoutdate->getValue() - $ret[$i]->Checkindate->getValue()) / ((60 * 60) * 24));
-                    $i++;
-                
-                endif;
-			}
-			return $ret;
+                    endif;
+                }
+            };
+    
+            // check fullname
+            if ($res->num_rows == 0)
+            {
+                $termArray = explode(' ', trim($term));
+    
+                // check length
+                if (count($termArray) == 2)
+                {
+                    // get first name last name
+                    list($name, $lastname) = $termArray;
+    
+                    // check now
+                    $res = $db->query("SELECT * FROM customer WHERE `name` LIKE '%$name%' OR surname LIKE '%$lastname%'");
+                }
+            }
+    
+            // Check now
+            if ($res->num_rows > 0)
+            {
+                // run loop
+                while (($row = $res->fetch_assoc()) != null)
+                {
+                    $searchFunction($row['customerid']);
+                }
+            }
+            else
+            {
+                $searchFunction($term);
+            }
+    
+            // return array
+            return $ret;
 		}
 
 		public static function Filter($term='', $field='reservationid')
@@ -270,6 +329,7 @@
                 $ret[$i]->Customer = $row['customer'];
                 $ret[$i]->Checkindate = $row['checkindate'];
                 $ret[$i]->Checkoutdate = $row['checkoutdate'];
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 
                 
                 $ret[$i]->Rooms = [];
@@ -297,6 +357,7 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -360,6 +421,8 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -423,6 +486,8 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -461,7 +526,7 @@
                 $ret->Customer->Initialize($row['customer']);
                 $ret->Checkindate = new WixDate($row['checkindate']);
                 $ret->Checkoutdate = new WixDate($row['checkoutdate']);
-                
+                $ret->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 
                 $ret->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -488,6 +553,7 @@
                 $ret->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret->Activated === false))
                 {
@@ -526,7 +592,7 @@
                 $ret[$i]->Customer->Initialize($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-                
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -553,6 +619,7 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -593,7 +660,7 @@
                 $ret[$i]->Customer->Initialize($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-            
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
             
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -620,7 +687,7 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
-
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -663,7 +730,8 @@
                 $ret[$i]->Customer->Initialize($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-            
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
+
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
 
@@ -689,6 +757,8 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
+
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -726,7 +796,7 @@
                 $ret[$i]->Customer->Initialize($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-                
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -753,6 +823,7 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -795,7 +866,7 @@
                     $ret[$i]->Customer->Initialize($row['customer']);
                     $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                     $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-                    
+                    $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                     
                     $ret[$i]->Rooms = [];
                     $r = json_decode($row['rooms']);
@@ -822,6 +893,7 @@
                     $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                     $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                     $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                    $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                     if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                     {
@@ -847,10 +919,32 @@
         {
             $db = DB::GetDB();
             $id = is_a($property, "Property") ? $property->Id : $property;
-            $today = strtotime(date("m/d/Y", time()));
-            $ret = $db->query("SELECT id FROM reservation WHERE property='$id' AND checkindate='$today' AND checkedin=0 AND noshow = 0 AND paid = 0")->num_rows;
+            $today = intval(strtotime(date("m/d/Y", time())));
+
+            // @var number $dueToday
+            $dueToday = 0;
+
+            // make query
+            $ret = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin = 0 AND noshow = 0");
+
+            // can we continue
+            if ($ret->num_rows > 0)
+            {
+                while (($row = $ret->fetch_assoc()) !== null)
+                {
+                    // get date
+                    $checkInDate = intval(strtotime(date('m/d/Y', $row['checkindate'])));
+
+                    // are we good ?
+                    if ($checkInDate == $today) $dueToday++;
+                }
+            }
+
+            // close db
             $db->close();
-            return $ret;
+
+            // return count
+            return $dueToday;
         }
 
         public static function noShowCount($property)
@@ -871,7 +965,7 @@
             $id = is_a($property, "Property") ? $property->Id : $property;
 
             $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=0 AND paid=1");
-             while(($row = $res->fetch_assoc()) != null)
+            while(($row = $res->fetch_assoc()) != null)
             {
                 $ret[$i] = new Reservation();
                 $ret[$i]->Id = $row['reservationid'];
@@ -881,7 +975,7 @@
                 $ret[$i]->Customer->Initialize($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-                
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -908,6 +1002,7 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -945,7 +1040,7 @@
                 $ret[$i]->Customer->Initialize($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-                
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -972,6 +1067,7 @@
                 $ret[$i]->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret[$i]->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret[$i]->Noshow = Convert::ToBool($row['noshow']);
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -1009,7 +1105,7 @@
                 $ret->Customer = new Customer($row['customer']);
                 $ret->Checkindate = new WixDate($row['checkindate']);
                 $ret->Checkoutdate = new WixDate($row['checkoutdate']);
-
+                $ret->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
                 $ret->Rooms = [];
                 $r = json_decode($row['rooms']);
 
@@ -1036,6 +1132,7 @@
                 $ret->Checkedin = Convert::ToBool($row['checkedin']);
                 $ret->Checkedout = Convert::ToBool($row['checkedout']);
                 $ret->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret->Activated === false))
                 {
@@ -1089,7 +1186,7 @@
                 $ret[$i]->Customer = new Customer($row['customer']);
                 $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                 $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-
+                $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
 
                 $ret[$i]->Rooms = [];
                 $r = json_decode($row['rooms']);
@@ -1116,6 +1213,7 @@
                 $ret[$i]->Checkedin = intval($row['checkedin']);
                 $ret[$i]->Checkedout = intval($row['checkedout']);
                 $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -1135,6 +1233,59 @@
             return $ret;
         }
 
+        // can we show this reservation?
+        private static function canShowReservation($row) : bool
+        {
+            // @var bool $canAdd
+            $canAdd = false;
+
+            // get date
+            $dateTime = new DateTime((isset($_REQUEST['dueDate']) ? $_REQUEST['dueDate'] : ''));
+
+            // created date
+            //if (date('d/m/Y', $row['created']) == $dateTime->format('d/m/Y')) $canAdd = true;
+
+            // check check in date
+            if (date('m/d/Y', $row['checkindate']) == $dateTime->format('m/d/Y')) $canAdd = true;
+
+            // can we continue
+            if (isset($_REQUEST['dueDate']) && ($_REQUEST['dueDate'] == '' && $canAdd === false)) 
+            {   
+                // if (isset($_REQUEST['tab']) && $_REQUEST['tab'] == 'all') $canAdd = true;
+            }
+
+            // get last 30 days
+            $last30Days = strtotime('today - 30 days');
+
+            // manage range
+            if (isset($_REQUEST['dueDate']) && isset($_REQUEST['dueDateTo']))
+            {
+                // can we add
+                if ($canAdd === false)
+                {
+                    // only proceed if date range exists
+                    if ($_REQUEST['dueDate'] != '' && $_REQUEST['dueDateTo'] != '')
+                    {
+                        // get date time 2
+                        $dateTime2 = new DateTime(date('m/d/Y', $row['checkindate']));
+
+                        // build time for range
+                        $rangeTime = new DateTime($_REQUEST['dueDateTo']);
+
+                        // check now
+                        if ($dateTime2->getTimestamp() <= $rangeTime->getTimestamp()) $canAdd = true;
+                    }
+                    else
+                    {
+                        if (intval($row['checkindate']) >= $last30Days) $canAdd = true;
+                    }
+                }
+            }
+
+            // return bool
+            return $canAdd;
+        }
+
         public static function applyFilter($property, $filter, $duedate)
         {
             $db = DB::GetDB();
@@ -1150,6 +1301,10 @@
             if($filter === "all")
             {
                 $res = $db->query("SELECT * FROM reservation WHERE property='$id'  ORDER BY id DESC");
+            }
+            else if($filter === "partial-paid")
+            {
+                $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 ORDER BY id DESC");
             }
             else if($filter === "paid")
             {
@@ -1169,17 +1324,8 @@
 
             while(($row = $res->fetch_assoc()) != null)
             {
-                // @var bool $canAdd
-                $canAdd = false;
-
-                // created date
-                // if (date('d/m/Y', $row['created']) == $dateTime->format('d/m/Y')) $canAdd = true;
-
-                // check check in date
-                if (date('d/m/Y', $row['checkindate']) == $dateTime->format('d/m/Y')) $canAdd = true;
-
                 // show reservation for today
-                if ($canAdd) :
+                if (self::canShowReservation($row)) :
 
                     $ret[$i] = new Reservation();
                     $ret[$i]->Id = $row['reservationid'];
@@ -1188,7 +1334,7 @@
                     $ret[$i]->Customer = new Customer($row['customer']);
                     $ret[$i]->Checkindate = new WixDate($row['checkindate']);
                     $ret[$i]->Checkoutdate = new WixDate($row['checkoutdate']);
-
+                    $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
 
                     $ret[$i]->Rooms = [];
                     $r = json_decode($row['rooms']);
@@ -1215,6 +1361,7 @@
                     $ret[$i]->Checkedin = intval($row['checkedin']);
                     $ret[$i]->Checkedout = intval($row['checkedout']);
                     $ret[$i]->Noshow = ($row['noshow'] == 2 ? false : Convert::ToBool($row['noshow']));
+                    $ret[$i]->CanMarkNoShow = self::canMarkAsNoShow($row);
 
                     if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                     {
@@ -1282,5 +1429,84 @@
 
             // send mail
             Mail::send($subscriber, $mail);
+        }
+
+        // check if reservation can be mark as no show
+        private static function canMarkAsNoShow(array $row) : bool 
+        {
+            // @var bool $canMark
+            $canMark = false;
+
+            // not checked in and out, include noshow
+            if ($row['checkedout'] == 0 && $row['checkedin'] == 0 && $row['noshow'] == 0)
+            {
+                // not canceled
+                if ($row['cancelled'] == 0)
+                {
+                    // get checkin
+                    $checkinDate = date('d/M/Y', $row['checkindate']);
+
+                    // are we clear for today?
+                    if ($checkinDate == date('d/M/Y') || time() >= intval($row['checkindate']))
+                    {
+                        // get property checkin rule
+                        $db = DB::GetDB();
+
+                        // @var string $propertyId
+                        $propertyId = $row['property'];
+
+                        // fetch property
+                        $property = $db->query("SELECT * FROM property WHERE propertyid = '{$propertyId}'");
+
+                        // are we good ??
+                        if ($property->num_rows > 0)
+                        {
+                            // fetch info
+                            $property = $property->fetch_assoc();
+
+                            // format checkin hour
+                            $checkinHour = intval($property['checkinh']);
+
+                            // format hour
+                            if ($checkinHour < 12) $checkinHour += 12;
+
+                            // get today
+                            $month = date('n');
+                            $day = date('j');
+                            $year = date('Y');
+
+                            // make time
+                            $checkInTime = mktime($checkinHour, $property['checkinm'], 0, $month, $day, $year);
+
+                            // build current time
+                            $currentTime = mktime(date('H'), date('i'), date('s'), $month, $day, $year);
+
+                            // passed time??
+                            if ($currentTime > $checkInTime) $canMark = true;
+
+                            // use default 
+                            //if (time() >= intval($row['checkindate'])) $canMark = true;
+                            if ($canMark == false)
+                            {
+                                // get current day
+                                $currentDay = strtotime(date('m/d/Y', time()));
+
+                                // get check in day
+                                $checkInDay = strtotime(date('m/d/Y', $row['checkindate']));
+
+                                // compare
+                                if ($currentDay > $checkInDay) $canMark = true;
+                            }
+                        }
+                    }
+                    elseif (time() >= intval($row['checkindate']))
+                    {
+                        $canMark = true;
+                    }
+                }
+            }
+
+            // return bool
+            return $canMark;
         }
     }

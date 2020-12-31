@@ -10,6 +10,9 @@
     // change username
     $username = $requestToken != '' ? 'Admin' : $username;
 
+    // get main
+    $main = $requestToken == '' ? '' : '<{domain}>';
+
     // create content
     $ret->Content = "
     <!DOCTYPE html>
@@ -30,6 +33,8 @@
             <link rel='stylesheet' type='text/css' href='".$cdn."/css/bookingstrip1.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/css/lightpick.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/css/line-awesome.css'/>
+            <link rel='stylesheet' type='text/css' href='".$cdn."../client/css/croppie.css'/>
+            <link rel='stylesheet' type='text/css' href='".$cdn."../client/css/datepicker.min.css'/>
     
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/lato/stylesheet.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/quicksand/stylesheet.css'/>
@@ -39,7 +44,9 @@
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/varelaround/stylesheet.css'/>
             <link rel='icon' type='image/png' href='".$cdn."/../../logo/favicon.png'/>
 
-            <script type='text/javascript'>var url = {\"storage\" : \"".$cdn."\", \"host\" : \"".$host."\"}</script>
+            <script type='text/javascript'>var url = {\"storage\" : \"".$cdn."\", \"host\" : \"".$host."\", \"main\" : \"".$main."\"}</script>
+            <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.22/pdfmake.min.js'></script>
+            <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js'></script>
             <script type='application/javascript' src='".$cdn."/js/jquery.min.js'></script>
             <script type='application/javascript' src='".$cdn."/js/functions.js'></script>
             <script type='application/javascript' src='".$cdn."/js/semantic.min.js'></script>
@@ -50,12 +57,14 @@
             <script type='application/javascript' src='".$cdn."/js/bookingstrip1.js'></script>
             <script type='application/javascript' src='".$cdn."/js/selection.min.js'></script>
             <script type='application/javascript' src='".$cdn."/js/print.min.js'></script>
+            <script type='application/javascript' src='".$cdn."../client/js/croppie.min.js'></script>
+            <script type='application/javascript' src='".$cdn."../client/js/datepicker.min.js'></script>
             <script type='application/javascript' src='".$cdn."/js/upload.js'></script>
         </head>
         <body style=''>
             <input id='pos-type' type='hidden' value='frontdesk_item'/>
             <audio id='alertSound'>
-                <source src='".$cdn."/sound/posalert.mp3' type='audio/mp3';></source>
+                <source src='".$cdn."/sound/posalert.mp3' type='audio/mp3'/>
             </audio>
             <div>
                 <div class='w3-container' style='padding: 4px; background-color: rgb(0,100,140); color: white;'>

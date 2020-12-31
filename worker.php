@@ -43,11 +43,13 @@
         if (is_object($data))
         {
             $_REQUEST['usersess'] = $data->usersess;
+            $_REQUEST['property'] = $data->property;
         }
-        
     }
 
-    switch(urldecode($_REQUEST['job']))
+    $job = isset($_REQUEST['job']) ? urldecode($_REQUEST['job']) : '<nada>';
+
+    switch($job)
     {
         case "get pos settings":
             if(isset($_REQUEST['usersess']))
@@ -103,6 +105,7 @@
                         $perpage = $_REQUEST['Perpage'];
                         $filter = $_REQUEST['filter'];
                         //$filtervalue = $_REQUEST['Filtervalue'];
+                        
 
                         $ret->Data = [];
                         $store = [];
@@ -367,6 +370,68 @@
                             $x++;
                         }
 
+                    }
+                }
+            }
+        break;
+        case 'confirm account ban':
+            if(isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                if ($user->Id != "")
+                {
+                    $user->UpdateSeenTime();
+                }
+
+                $settings = null;
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
+                {
+                    if ($user->Role->Frontdesk->ReadAccess)
+                    {
+                        // get database
+                        $db = DB::GetDB();
+
+                        // get type
+                        $type = $_REQUEST['type'];
+
+                        // get value
+                        $value = $_REQUEST['value'];
+
+                        // get customer
+                        $customer = $db->query("SELECT customerid FROM customer WHERE `$type` = '$value'");
+
+                        // are we good ??
+                        if ($customer->num_rows > 0)
+                        {
+                            // fetch record
+                            $customerId = $customer->fetch_assoc()['customerid'];
+
+                            // get propertyid
+                            $property = $_REQUEST['propertyid'];
+
+                            // check if customer has been profiled for this property
+                            $query = $db->query("SELECT * FROM customerByProperty WHERE customerid = '$customerId' AND propertyid = '$property'");
+
+                            // set default status
+                            $ret->status = 'success';
+
+                            // are we good
+                            if ($query->num_rows > 0)
+                            {
+                                // fetch 
+                                $record = $query->fetch_assoc();
+
+                                // is he/she banned 
+                                if ($record['isBaned'] == 1)
+                                {
+                                    $ret->status = 'error';
+                                    $ret->message = 'This customer has been banned';
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -638,7 +703,6 @@
 
                             $items = explode(",", $_REQUEST['items']);
 
-
                             for($i = 0; $i < count($items); $i++)
                             {
                                 $r = explode(":", $items[$i]);
@@ -666,6 +730,9 @@
                             $reservation->Checkindate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
                             $reservation->Rooms = $roomList;
                             $reservation->Save();
+
+                            // apply coupon
+                            Coupon::applyCoupon($reservation->Bookingnumber);
 
 
                             //retrieve and reprocess reservation
@@ -750,11 +817,12 @@
 
                             $rooms = [];
 
-                            if(Convert::ToBool($_REQUEST['fromReserve']))
+                            if (Convert::ToBool($_REQUEST['fromReserve']))
                             {
                                 $reservation = new Reservation($_REQUEST['booking']);
                                 $reservation->Checkedin = true;
                                 $reservation->Activated = true;
+                                $reservation->Noshow = false;
 
                                 if(doubleval($_REQUEST['paidAmount']) > 0)
                                 {
@@ -888,9 +956,17 @@
                                     array_push($rooms, $pixel);
                                 }
                             }
+
                             $lodging->Rooms = $rooms;
                             $lodging->Checkincount = count($rooms);
                             $lodging->Save();
+
+                            // apply coupon
+                            if (Convert::ToBool($_REQUEST['fromReserve']) == false)
+                            {
+                                // apply coupon
+                                Coupon::applyCoupon($lodging->Bookingnumber);
+                            }
 
 
                             //Retrieve data for processing
@@ -906,20 +982,35 @@
                         {
                             $reservation = new Reservation($_REQUEST['booking']);
                             $reservation->Noshow = true;
+                            
+                            // log for approval
+                            if (isset($_REQUEST['payment_method']) && isset($_REQUEST['message']))
+                            {
+                                $reservation->RefundPaymentCondition = json_encode([
+                                    'method'   => $_REQUEST['payment_method'],
+                                    'message'  => $_REQUEST['message'],
+                                    'loggedBy' => $_REQUEST['posuser']
+                                ]);
+                            }
+
                             $reservation->Save();
 
                             $ret->Status = "success";
                             $ret->Message = "No show marked. Pending Confirmation from Customer.";
                             $ret->Data = null;
 
-                            // send confirmation email
-                            $reservation->sendConfirmationMail();
+                            if ($reservation->IsOnline == 1 && floatval($reservation->Paidamount) > 0)
+                            {
+                                // send confirmation email
+                                $reservation->sendConfirmationMail();
+                            }
                         }
 
                         if ($_REQUEST['operation'] === "cancel reservation")
                         {
                             $reservation = new Reservation($_REQUEST['booking']);
                             $reservation->Cancelled = true;
+                            $reservation->Noshow = false;
                             $reservation->Save();
 
                             $ret->Status = "success";
@@ -984,7 +1075,7 @@
             $db = DB::GetDB();
 
             // verify id
-            $reservation = $db->query("SELECT noshow FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
+            $reservation = $db->query("SELECT * FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
 
             // do we have such reservation
             if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
@@ -995,8 +1086,17 @@
             // flagged no show ?
             if ($row['noshow'] != 2) return $router->printJson(['status' => 'error', 'message' => 'Reservation is still active. Cannot continue with confirmation.']);
 
-            // update reservation
-            $db->query("UPDATE reservation SET noshow = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+            // all checked
+            if ($row['isApprovedBySuperAdmin'] == 1 && $row['isApprovedByPartnerAdmin'] == 1)
+            {
+                // update reservation
+                $db->query("UPDATE reservation SET noshow = 1, isConfirmedByGuest = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+            }
+            else
+            {
+                // update reservation
+                $db->query("UPDATE reservation SET noshow = 2, isConfirmedByGuest = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+            }
 
             // TODO: Perform refund policy if customer made payment already
             // ...
@@ -1004,6 +1104,88 @@
             // all good
             header('location: ' . rtrim($urlConfiguration->origin, '/') . '/noshow-confirmed');
 
+        break;
+        case "save property customer":
+            if(isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                if ($user->Id != "")
+                {
+                    $user->UpdateSeenTime();
+                }
+
+                $settings = null;
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
+                {
+                    if ($user->Role->Frontdesk->WriteAccess)
+                    {
+                        // load customer
+                        $customer = new Customer(new Subscriber());
+                        $customer->Initialize($_REQUEST['id']);
+
+                        // replace data
+                        $customer->Profilepic = (isset($_REQUEST['profilePic']) && $_REQUEST['profilePic'] != '') ? $_REQUEST['profilePic'] : $customer->Profilepic;
+                        $customer->Name = !empty($_REQUEST['name']) ? $_REQUEST['name'] : $customer->Name;
+                        $customer->Surname = !empty($_REQUEST['surname']) ? $_REQUEST['surname'] : $customer->Surname;
+                        $customer->Phone = !empty($_REQUEST['phone']) ? $_REQUEST['phone'] : $customer->Phone;
+                        $customer->Email = !empty($_REQUEST['email']) ? $_REQUEST['email'] : $customer->Email;
+                        $customer->Country = !empty($_REQUEST['country']) ? $_REQUEST['country'] : $customer->Country;
+                        $customer->State = !empty($_REQUEST['state']) ? $_REQUEST['state'] : $customer->State;
+                        $customer->City = !empty($_REQUEST['city']) ? $_REQUEST['city'] : $customer->City;
+                        $customer->Address = !empty($_REQUEST['address']) ? $_REQUEST['address'] : $customer->Address;
+                        $customer->Sex = !empty($_REQUEST['sex']) ? $_REQUEST['sex'] : $customer->Sex;
+                        $customer->DOB = !empty($_REQUEST['dob']) ? $_REQUEST['dob'] : $customer->DOB;
+
+
+                        // Check password
+                        if ($customer->GetPassword() == '')
+                        {
+                            // update
+                            $ret->Message = 'Profile updated successfully';
+                            $ret->Status = 'success';
+
+                            // run now
+                            $customer->Save();
+                        }
+                        else
+                        {
+                            $ret->Message = 'Cannot perform update. Account has been locked by the user.';
+                        }
+
+                    }
+                }
+            }
+        break;
+        case 'calculate overdue bill':
+            if(isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                if ($user->Id != "")
+                {
+                    $user->UpdateSeenTime();
+                }
+
+                $settings = null;
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
+                {
+                    if ($user->Role->Frontdesk->WriteAccess)
+                    {
+                        // calculate biil
+                        $newTotal = Lodging::CalculateAndAddExtraFee((new Subscriber), $_REQUEST['lodgingid']);
+
+                        // show new total
+                        $ret->status = $ret->Status = 'success';
+                        $ret->total = $newTotal;
+                        $ret->Message = 'New bill collected';
+                    }
+                }
+            }
         break;
     }
 

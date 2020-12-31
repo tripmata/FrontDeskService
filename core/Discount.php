@@ -45,7 +45,10 @@
 		public $Bookedroom = false;
 		public $Bookeddays = false;
 		public $Amountbased = false;
-		public $Ontotal = false;
+        public $Ontotal = false;
+        public $PaymentMode = false;
+        public $PaymentCollection = '';
+        public $WithinPeriodForDiscount = false;
 
 		private $subscriber = null;
 
@@ -105,6 +108,38 @@
                     $this->Bookeddays = Convert::ToBool($row['bookeddays']);
                     $this->Amountbased = Convert::ToBool($row['amountbased']);
                     $this->Ontotal = Convert::ToBool($row['ontotal']);
+                    $this->PaymentMode = Convert::ToBool($row['paymentmode']);
+                    $this->PaymentCollection = $row['paymentCollection'];
+                    $this->isWithinPeriodForDiscount($row);
+                }
+            }
+        }
+
+        // checks if automatic discount can be applied 
+        // for this period
+        public function isWithinPeriodForDiscount($row)
+        {
+            // can we continue
+            if (strlen($row['fromdate']) > 4 && strlen($row['todate']) > 4)
+            {
+                // get today
+                $today = time();
+
+                // load date from
+                $dateFrom = intval($row['fromdate']);
+
+                // load date to
+                $dateTo = intval($row['todate']);
+
+                // compare from start
+                if ($today <= $dateTo)
+                {
+                    // ok we can check date from
+                    if ($today >= $dateFrom)
+                    {
+                        // ok can apply discount
+                        $this->WithinPeriodForDiscount = true;
+                    }
                 }
             }
         }
@@ -185,7 +220,7 @@
 			$ret = array();
 			$i = 0;
 
-			$res = $db->query("SELECT * FROM discount WHERE name LIKE '%$term%' OR booking LIKE '%$term%' OR food LIKE '%$term%' OR drinks LIKE '%$term%' OR pastries LIKE '%$term%' OR laundry LIKE '%$term%' OR pool LIKE '%$term%' OR services LIKE '%$term%' OR value LIKE '%$term%' OR bypercentage LIKE '%$term%' OR status LIKE '%$term%' OR autoapply LIKE '%$term%' OR fromamount LIKE '%$term%' OR toamount LIKE '%$term%' OR fromcount LIKE '%$term%' OR tocount LIKE '%$term%' OR fromhour LIKE '%$term%' OR tohour LIKE '%$term%' OR fromminuite LIKE '%$term%' OR tominuite LIKE '%$term%' OR fromday LIKE '%$term%' OR today LIKE '%$term%' OR frommonth LIKE '%$term%' OR tomonth LIKE '%$term%' OR frommeridean LIKE '%$term%' OR tomeridean LIKE '%$term%' OR isstaff LIKE '%$term%' OR peiodic LIKE '%$term%' OR timebased LIKE '%$term%' OR bookingcount LIKE '%$term%' OR formerorder LIKE '%$term%' OR onlineorder LIKE '%$term%' OR offlineorder LIKE '%$term%' OR quantity LIKE '%$term%' OR bookedroom LIKE '%$term%' OR bookeddays LIKE '%$term%' OR amountbased LIKE '%$term%'");
+			$res = $db->query("SELECT * FROM discount WHERE `name` LIKE '%$term%' OR booking LIKE '%$term%' OR food LIKE '%$term%' OR drinks LIKE '%$term%' OR pastries LIKE '%$term%' OR laundry LIKE '%$term%' OR `pool` LIKE '%$term%' OR services LIKE '%$term%' OR `value` LIKE '%$term%' OR bypercentage LIKE '%$term%' OR `status` LIKE '%$term%' OR autoapply LIKE '%$term%' OR fromamount LIKE '%$term%' OR toamount LIKE '%$term%' OR fromcount LIKE '%$term%' OR tocount LIKE '%$term%' OR fromhour LIKE '%$term%' OR tohour LIKE '%$term%' OR fromminuite LIKE '%$term%' OR tominuite LIKE '%$term%' OR fromday LIKE '%$term%' OR today LIKE '%$term%' OR frommonth LIKE '%$term%' OR tomonth LIKE '%$term%' OR frommeridean LIKE '%$term%' OR tomeridean LIKE '%$term%' OR isstaff LIKE '%$term%' OR peiodic LIKE '%$term%' OR timebased LIKE '%$term%' OR bookingcount LIKE '%$term%' OR formerorder LIKE '%$term%' OR onlineorder LIKE '%$term%' OR offlineorder LIKE '%$term%' OR quantity LIKE '%$term%' OR bookedroom LIKE '%$term%' OR bookeddays LIKE '%$term%' OR amountbased LIKE '%$term%'");
 			while(($row = $res->fetch_assoc()) != null)
 			{
                 $ret[$i] = new Discount($subscriber);
@@ -229,6 +264,9 @@
                 $ret[$i]->Bookeddays = Convert::ToBool($row['bookeddays']);
                 $ret[$i]->Amountbased = Convert::ToBool($row['amountbased']);
                 $ret[$i]->Ontotal = Convert::ToBool($row['ontotal']);
+                $ret[$i]->PaymentMode = Convert::ToBool($row['paymentmode']);
+                $ret[$i]->PaymentCollection = $row['paymentCollection'];
+                $ret[$i]->isWithinPeriodForDiscount($row);
 				$i++;
 			}
 			return $ret;
@@ -284,6 +322,9 @@
                 $ret[$i]->Bookeddays = Convert::ToBool($row['bookeddays']);
                 $ret[$i]->Amountbased = Convert::ToBool($row['amountbased']);
                 $ret[$i]->Ontotal = Convert::ToBool($row['ontotal']);
+                $ret[$i]->PaymentMode = Convert::ToBool($row['paymentmode']);
+                $ret[$i]->PaymentCollection = $row['paymentCollection'];
+                $ret[$i]->isWithinPeriodForDiscount($row);
 				$i++;
 			}
 			return $ret;
@@ -339,6 +380,9 @@
                 $ret[$i]->Bookeddays = Convert::ToBool($row['bookeddays']);
                 $ret[$i]->Amountbased = Convert::ToBool($row['amountbased']);
                 $ret[$i]->Ontotal = Convert::ToBool($row['ontotal']);
+                $ret[$i]->PaymentMode = Convert::ToBool($row['paymentmode']);
+                $ret[$i]->PaymentCollection = $row['paymentCollection'];
+                $ret[$i]->isWithinPeriodForDiscount($row);
 				$i++;
 			}
 			return $ret;
@@ -350,7 +394,9 @@
 			$ret = array();
 			$i = 0;
 
-			$res = $db->query("SELECT * FROM discount");
+			$property = $_REQUEST['propertyid'];
+
+			$res = $db->query("SELECT * FROM discount WHERE propertyid = '$property' AND `status` = 1");
 			while(($row = $res->fetch_assoc()) != null)
 			{
 				$ret[$i] = new Discount($subscriber);
@@ -394,6 +440,9 @@
 				$ret[$i]->Bookeddays = Convert::ToBool($row['bookeddays']);
 				$ret[$i]->Amountbased = Convert::ToBool($row['amountbased']);
                 $ret[$i]->Ontotal = Convert::ToBool($row['ontotal']);
+                $ret[$i]->PaymentMode = Convert::ToBool($row['paymentmode']);
+                $ret[$i]->PaymentCollection = $row['paymentCollection'];
+                $ret[$i]->isWithinPeriodForDiscount($row);
 				$i++;
 			}
 			return $ret;
@@ -881,6 +930,417 @@
             return $orderlist;
         }
 
+        public static function buildPixels(Subscriber $subscriber, Orderlist $orderlist)
+        {
+            $pixels = [];
+
+            $orderlist->Discount = 0;
+            $orderlist->Discountlist = array();
+            $discounts = Discount::Filter($subscriber,  1, 'autoapply');
+            $items = $orderlist->Getitems();
+
+            $modules = new Modules($subscriber);
+
+            //echo json_encode($items);
+
+            for($i = 0; $i < count($discounts); $i++)
+            {
+                if(($discounts[$i]->Status) && ($modules->Discount))
+                {
+                    for($j = 0; $j < count($items); $j++)
+                    {
+                        $pixels[$j] = new stdClass();
+                        $pixels[$j]->Discount = $discounts[$i];
+                        $pixels[$j]->Value = $discounts[$i]->Value;
+                        $pixels[$j]->Amount = 0;
+                        $pixels[$j]->Services = 0;
+                        $pixels[$j]->Room = 0;
+                        $pixels[$j]->Pool = 0;
+                        $pixels[$j]->Pastry = 0;
+                        $pixels[$j]->Laundry = 0;
+                        $pixels[$j]->Food = 0;
+                        $pixels[$j]->Drinks = 0;
+                        $pixels[$j]->Percentage = $discounts[$i]->Bypercentage;
+
+
+                        $amount = 0;
+
+                        if($discounts[$i]->Matchitem($items[$j]))
+                        {
+                            if($discounts[$i]->Isstaff)
+                            {
+                                if($orderlist->Owner->Type === "staff")
+                                {
+                                    if($discounts[$i]->Bypercentage)
+                                    {
+                                        if($discounts[$i]->Ontotal)
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                        }
+                                        else
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                        }
+                                    }
+                                    else
+                                    {
+                                        $amount += $discounts[$i]->Value;
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Periodic)
+                            {
+                                if((Convert::MonthToNumber($discounts[$i]->Frommonth) > Convert::ToInt(date('m'))) &&
+                                    (Convert::MonthToNumber($discounts[$i]->Tomonth) < Convert::ToInt(date('m'))))
+                                {
+                                    if($discounts[$i]->Bypercentage)
+                                    {
+                                        if($discounts[$i]->Ontotal)
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                        }
+                                        else
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                        }
+                                    }
+                                    else
+                                    {
+                                        $amount += $discounts[$i]->Value;
+                                    }
+                                }
+                                if(Convert::MonthToNumber($discounts[$i]->Frommonth) == Convert::ToInt(date('m')))
+                                {
+                                    if($discounts[$i]->Fromday <= Convert::ToInt(date("d")))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                                else if(Convert::MonthToNumber($discounts[$i]->Tomonth) == Convert::ToInt(date('m')))
+                                {
+                                    if($discounts[$i]->Today >= Convert::ToInt(date("d")))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Timebased)
+                            {
+                                $nowsec = time() - ((strtotime(date("m/d/Y"))));
+                                $fromsec = 0;
+                                $tosec = 0;
+
+                                $starthour = $discounts[$i]->Fromhour == 12 ? 0 : $discounts[$i]->Fromhour;
+                                $stophour = $discounts[$i]->Tohour == 12 ? 0 : $discounts[$i]->Tohour;
+
+                                $fromsec = $discounts[$i]->Frommeridean == "am" ? ((($starthour * 60) + $discounts[$i]->Fromminuite) * 60) : (((($discounts[$i]->Fromhour + 12) * 60) + $discounts[$i]->Fromminuite) * 60);
+                                $tosec = $discounts[$i]->Tomeridean == "am" ? ((($stophour * 60) + $discounts[$i]->Tominuite) * 60) : (((($discounts[$i]->Tohour + 12) * 60) + $discounts[$i]->Tominuite) * 60);
+
+
+                                if($fromsec > $tosec)
+                                {
+                                    if (($nowsec >= $fromsec) || ($nowsec <= $tosec))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (($nowsec >= $fromsec) && ($nowsec <= $tosec))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Bookingcount)
+                            {
+                                $count = Lodging::LodgeCount($subscriber, $orderlist->Owner);
+
+                                if($count >= $discounts[$i]->Fromcount)
+                                {
+                                    if(($count <= $discounts[$i]->Tocount) || ($discounts[$i]->Tocount === 0))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Formerorder)
+                            {
+                                if($discounts[$i]->Bypercentage)
+                                {
+                                    if($discounts[$i]->Ontotal)
+                                    {
+                                        $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                    }
+                                    else
+                                    {
+                                        $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                    }
+                                }
+                                else
+                                {
+                                    $amount += $discounts[$i]->Value;
+                                }
+                            }
+                            if($discounts[$i]->Onlineorder)
+                            {
+                                if($orderlist->Online())
+                                {
+                                    if($discounts[$i]->Bypercentage)
+                                    {
+                                        if($discounts[$i]->Ontotal)
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                        }
+                                        else
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                        }
+                                    }
+                                    else
+                                    {
+                                        $amount += $discounts[$i]->Value;
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Offlineorder)
+                            {
+                                if($orderlist->Offline())
+                                {
+                                    if($discounts[$i]->Bypercentage)
+                                    {
+                                        if($discounts[$i]->Ontotal)
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                        }
+                                        else
+                                        {
+                                            $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                        }
+                                    }
+                                    else
+                                    {
+                                        $amount += $discounts[$i]->Value;
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Quantity)
+                            {
+                                if(isset($items[$j]->Quantiy))
+                                {
+                                    if($items[$j]->Quantity >= $discounts[$i]->Fromcount)
+                                    {
+                                        if(($items[$j]->Quantity <= Convert::ToInt($discounts[$i]->Tocount)) || (Convert::ToInt($discounts[$i]->Tocount) === 0))
+                                        {
+                                            if($discounts[$i]->Bypercentage)
+                                            {
+                                                if($discounts[$i]->Ontotal)
+                                                {
+                                                    $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                                }
+                                                else
+                                                {
+                                                    $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                                }
+                                            }
+                                            else
+                                            {
+                                                $amount += $discounts[$i]->Value;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Bookedroom)
+                            {
+                                $roomscount = 0;
+
+                                for($o = 0; $o < count($items); $o++)
+                                {
+                                    if($items[$o]->Type == "room_order")
+                                    {
+                                        $roomscount++;
+                                    }
+                                }
+
+                                if($roomscount >= $discounts[$i]->Fromcount)
+                                {
+                                    if(($roomscount <= Convert::ToInt($discounts[$i]->Tocount)) || (Convert::ToInt($discounts[$i]->Tocount) === 0))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Bookeddays)
+                            {
+                                if($items[$j]->Type === "room_order")
+                                {
+                                    $days = Roomorder::Days($items[$j]);
+
+                                    if($days >= $discounts[$i]->Fromcount)
+                                    {
+                                        if(($days <= Convert::ToInt($discounts[$i]->Tocount)) || (Convert::ToInt($discounts[$i]->Tocount) === 0))
+                                        {
+                                            if($discounts[$i]->Bypercentage)
+                                            {
+                                                if($discounts[$i]->Ontotal)
+                                                {
+                                                    $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                                }
+                                                else
+                                                {
+                                                    $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                                }
+                                            }
+                                            else
+                                            {
+                                                $amount += $discounts[$i]->Value;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if($discounts[$i]->Amountbased)
+                            {
+                                if($orderlist->GetTotal() >= $discounts[$i]->Fromamount)
+                                {
+                                    if(($orderlist->GetTotal() <= $discounts[$i]->Toamount) || (Convert::ToInt($discounts[$i]->Toamount) === 0))
+                                    {
+                                        if($discounts[$i]->Bypercentage)
+                                        {
+                                            if($discounts[$i]->Ontotal)
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $orderlist->GetTotal());
+                                            }
+                                            else
+                                            {
+                                                $amount += (($discounts[$i]->Value / 100.0) * $items[$j]->Total());
+                                            }
+                                        }
+                                        else
+                                        {
+                                            $amount += $discounts[$i]->Value;
+                                        }
+                                    }
+                                }
+                            }
+
+
+                            if($items[$j]->Type === "room_order")
+                            {
+                                $pixels[$j]->Room = $amount;
+                            }
+                            if($items[$j]->Type === "food_order")
+                            {
+                                $pixels[$j]->Food = $amount;
+                            }
+                            if($items[$j]->Type === "drink_order")
+                            {
+                                $pixels[$j]->Drinks = $amount;
+                            }
+                            if($items[$j]->Type === "pastry_order")
+                            {
+                                $pixels[$j]->Pastry = $amount;
+                            }
+                            if($items[$j]->Type === "laundry_order")
+                            {
+                                $pixels[$j]->Laundry = $amount;
+                            }
+                            if($items[$j]->Type === "pool_order")
+                            {
+                                $pixels[$j]->Pool = $amount;
+                            }
+                        }
+                        $pixels[$j]->Amount = $pixels[$j]->Pool + $pixels[$j]->Laundry + $pixels[$j]->Room + $pixels[$j]->Drinks + $pixels[$j]->Food + $pixels[$j]->Pastry;
+                    }
+                }
+            }
+            return $pixels;
+        }
 
         public static function Barcovered(Subscriber $subscriber)
         {
@@ -897,6 +1357,7 @@
             }
             return $ret;
         }
+
         public static function Foodcovered(Subscriber $subscriber)
         {
             $discounts = Discount::All($subscriber);
@@ -912,6 +1373,7 @@
             }
             return $ret;
         }
+
         public static function Pastrycovered(Subscriber $subscriber)
         {
             $discounts = Discount::All($subscriber);
@@ -927,6 +1389,7 @@
             }
             return $ret;
         }
+
         public static function Laundrycovered(Subscriber $subscriber)
         {
             $discounts = Discount::All($subscriber);
@@ -942,6 +1405,7 @@
             }
             return $ret;
         }
+
         public static function Poolcovered(Subscriber $subscriber)
         {
             $discounts = Discount::All($subscriber);
@@ -957,6 +1421,7 @@
             }
             return $ret;
         }
+
         public static function Servicescovered(Subscriber $subscriber)
         {
             $discounts = Discount::All($subscriber);

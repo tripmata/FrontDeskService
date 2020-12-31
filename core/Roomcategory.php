@@ -209,8 +209,15 @@
 			$ret = array();
 			$i = 0;
 			$property = $_REQUEST['propertyid'];
+			$extra = '';
 
-			$res = $db->query("SELECT * FROM roomcategory WHERE propertyid = '$property'");
+			// check job
+			if (isset($_REQUEST['job']) && $_REQUEST['job'] == 'get pos items')
+			{
+				$extra = 'AND `status` = 1';
+			}
+
+			$res = $db->query("SELECT * FROM roomcategory WHERE propertyid = '$property' $extra");
 			while(($row = $res->fetch_assoc()) != null)
 			{
 				$ret[$i] = new Roomcategory($subscriber);

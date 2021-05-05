@@ -31,8 +31,11 @@ class Lodging
     public $Checkoutcount = 0;
     public $Checkedout = false;
     public $BaseTotal = 0;
+    public $ReservationID = '';
+    public $IsOverdue = false;
 
     private $subscriber = null;
+    public $PlatformName = '';
 
     function __construct(Subscriber $subscriber)
     {
@@ -40,7 +43,7 @@ class Lodging
     }
 
     public function Initialize($arg=null)
-    {
+    { 
         if($arg != null)
         {
             $db = $this->subscriber->GetDB();
@@ -78,10 +81,52 @@ class Lodging
 
                 $r = json_decode($row['rooms']);
 
+                // var_dump($r);
+
                 if(is_array($r))
                 {
                     for($i = 0; $i < count($r); $i++)
                     {
+                        // check for id
+                        if ($r[$i]->Id == '') :
+
+                            // @var mixed $bookingNumber
+                            $bookingNumber = $row['booking'];
+
+                            // find reservation id from reservation with booking number
+                            $reservation = $db->query("SELECT rooms FROM reservation WHERE booking = '$bookingNumber'");
+
+                            // are we good ?
+                            if ($reservation->num_rows > 0) :
+
+                                // fetch 
+                                $fetch = json_decode($reservation->fetch_assoc()['rooms'])[0];
+
+                                // get number
+                                $number = $fetch->number;
+
+                                // get room categoryid
+                                $categoryId = $fetch->room;
+
+                                // get roomid
+                                $roomId = $db->query("SELECT roomid FROM room WHERE `number` = '$number' AND category  = '$categoryId'");
+
+                                // are we good 
+                                if ($roomId->num_rows > 0) :
+
+                                    // feetch result
+                                    $roomId = $roomId->fetch_assoc()['roomid'];
+
+                                    // add id
+                                    $r[$i]->Id = $roomId;
+
+                                endif;
+
+                            endif;
+
+                        endif;
+
+                        // load lodgepixel
                         $ro = new Lodgepixel($this->subscriber, $r[$i]);
                         array_push($this->Rooms, $ro);
                     }
@@ -100,6 +145,8 @@ class Lodging
                 $this->Paidamount = doubleval($row['paidamount']);
                 $this->Bills = doubleval($row['bills']);
                 $this->Bookingnumber = $row['booking'];
+                $this->overdueCheckOut($row);
+                $this->PlatformName = $row['platformName'];
 
                 $this->Roomcategory = [];
                 $rcat = json_decode($row['roomcategory']);
@@ -160,6 +207,7 @@ class Lodging
         $checkoutcount = Convert::ToInt($this->Checkoutcount);
         $checkedout = Convert::ToInt($this->Checkedout);
         $baseTotal = doubleval($this->BaseTotal);
+        $platform = addslashes($this->PlatformName);
 
 
         // manage booking number
@@ -205,18 +253,25 @@ class Lodging
 
         if($res = $db->query("SELECT lodgingid FROM lodging WHERE lodgingid='$id'")->num_rows > 0)
         {
-            $db->query("UPDATE lodging SET guest='$guest',subguest='$subguest',rooms='$rooms',checkin='$checkin',checkout='$checkout',`days`='$days',adults='$adults',children='$children',pet='$pet',paid='$paid',total='$total',taxes='$taxes',discount='$discount',paidamount='$paidamount',roomcategory='$roomcategory',user='$user',checkouts='$checkouts',bills='$bills',booking='$booking',checkincount='$checkincount',checkoutcount='$checkoutcount',checkedout='$checkedout',base_total='$baseTotal' WHERE lodgingid = '$id'");
+            $db->query("UPDATE lodging SET guest='$guest',subguest='$subguest',rooms='$rooms',checkin='$checkin',checkout='$checkout',`days`='$days',adults='$adults',children='$children',pet='$pet',paid='$paid',total='$total',taxes='$taxes',discount='$discount',paidamount='$paidamount',roomcategory='$roomcategory',user='$user',checkouts='$checkouts',bills='$bills',booking='$booking',checkincount='$checkincount',checkoutcount='$checkoutcount',checkedout='$checkedout',base_total='$baseTotal',platformName = '$platform' WHERE lodgingid = '$id'");
         }
         else
         {
-            redo: ;
-            $id = Random::GenerateId(16);
-            if($db->query("SELECT lodgingid FROM lodging WHERE lodgingid='$id'")->num_rows > 0)
-            {
-                goto redo;
-            }
-            $this->Id = $id;
-            $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal')");
+            // check Bookingnumber
+            $fromLodging = $db->query("SELECT id FROM lodging WHERE booking = '{$booking}'");
+
+            if ($fromLodging->num_rows == 0) :
+
+                redo: ;
+                $id = Random::GenerateId(16);
+                if($db->query("SELECT lodgingid FROM lodging WHERE lodgingid='$id'")->num_rows > 0)
+                {
+                    goto redo;
+                }
+                $this->Id = $id;
+                $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total,platformName) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal', '$platform')");
+            
+            endif;
         }
     }
 
@@ -238,6 +293,21 @@ class Lodging
 
         $this->User->Delete();
         */
+    }
+
+    public function getReservationID($row, $db)
+    {
+        // @var string $bookingNumber
+        $bookingNumber = $row['booking'];
+
+        // check reservation
+        $query = $db->query("SELECT reservationid FROM reservation WHERE booking = '$bookingNumber'");
+
+        // are we good ?
+        if ($query->num_rows > 0)
+        {
+            $this->ReservationID = $query->fetch_assoc()['reservationid'];
+        }
     }
 
     public static function Search(Subscriber $subscriber, $term='')
@@ -301,6 +371,9 @@ class Lodging
                     $ret[$i]->Checkouts = json_decode($row['checkouts']);
                     $ret[$i]->Bills = doubleval($row['bills']);
                     $ret[$i]->Bookingnumber = $row['booking'];
+                    $ret[$i]->PlatformName = $row['platformName'];
+                    $ret[$i]->getReservationID($row, $db);
+                    $ret[$i]->overdueCheckOut($row);
                     $i++;
 
                 endif;
@@ -391,6 +464,8 @@ class Lodging
             $ret[$i]->Checkouts = json_decode($row['checkouts']);
             $ret[$i]->Bills = doubleval($row['bills']);
             $ret[$i]->Bookingnumber = $row['booking'];
+            $ret[$i]->PlatformName = $row['platformName'];
+            $ret[$i]->overdueCheckOut($row);
             $i++;
         }
         return $ret;
@@ -444,6 +519,8 @@ class Lodging
             $ret[$i]->Checkouts = json_decode($row['checkouts']);
             $ret[$i]->Bills = doubleval($row['bills']);
             $ret[$i]->Bookingnumber = $row['booking'];
+            $ret[$i]->PlatformName = $row['platformName'];
+            $ret[$i]->overdueCheckOut($row);
             $i++;
         }
         return $ret;
@@ -499,6 +576,8 @@ class Lodging
             $ret[$i]->Checkouts = json_decode($row['checkouts']);
             $ret[$i]->Bills = doubleval($row['bills']);
             $ret[$i]->Bookingnumber = $row['booking'];
+            $ret[$i]->PlatformName = $row['platformName'];
+            $ret[$i]->overdueCheckOut($row);
             $i++;
         }
         return $ret;
@@ -524,7 +603,7 @@ class Lodging
         $i = 0;
         $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
         $t = strtotime(date("m/d/Y", time()));
-        $res = $db->query("SELECT id FROM lodging WHERE checkin='$t' AND propertyid = '$property'")->num_rows;
+        $res = $db->query("SELECT id FROM lodging WHERE checkin='$t' AND checkedout = 0 AND propertyid = '$property'")->num_rows;
         $db->close();
 
         return $res;
@@ -628,6 +707,7 @@ class Lodging
                 $ret[$i]->Checkouts = json_decode($row['checkouts']);
                 $ret[$i]->Bills = doubleval($row['bills']);
                 $ret[$i]->Bookingnumber = $row['booking'];
+                $ret[$i]->overdueCheckOut($row);
                 $i++;
 
             endif;
@@ -690,6 +770,8 @@ class Lodging
                 $ret[$i]->Checkouts = json_decode($row['checkouts']);
                 $ret[$i]->Bills = doubleval($row['bills']);
                 $ret[$i]->Bookingnumber = $row['booking'];
+                $ret[$i]->PlatformName = $row['platformName'];
+                $ret[$i]->overdueCheckOut($row);
                 $i++;
 
             endif;
@@ -813,18 +895,35 @@ class Lodging
             }
         }
 
-        // check base total
-        if ($lodging->BaseTotal == 0)
+        // add full bill
+        if ($bill == 0)
         {
-            // update base total with total
-            $lodging->BaseTotal = $lodging->Total;
+            foreach ($lodging->Rooms as $room)
+            {
+                //if (is_object($room->Category) && $room->Checkedout == false) $bill += floatval($room->Category->Price);
+            }
         }
 
         // update total
-        $lodging->Total = ($bill + $lodging->BaseTotal);
+        $lodging->Total = 0;
 
-        // save now
-        $lodging->Save();
+        // has bill?
+        if ($bill > 0) :
+
+            // check base total
+            if ($lodging->BaseTotal == 0)
+            {
+                // update base total with total
+                $lodging->BaseTotal = $lodging->Total;
+            }
+
+            // update total
+            $lodging->Total = ($bill + $lodging->BaseTotal);
+
+            // save now
+            $lodging->Save();
+
+        endif;
 
         // return bill
         return $lodging->Total;
@@ -841,7 +940,7 @@ class Lodging
 
         $res = $db->query("SELECT * FROM lodging WHERE checkin = '$date' and propertyid = '$property'");
 
-        while(($row = $res->fetch_assoc()) != null)
+        while (($row = $res->fetch_assoc()) != null)
         {
             $ret[$i] = new Lodging($subscriber);
             $ret[$i]->Id = $row['lodgingid'];
@@ -885,6 +984,8 @@ class Lodging
             $ret[$i]->Checkouts = json_decode($row['checkouts']);
             $ret[$i]->Bills = doubleval($row['bills']);
             $ret[$i]->Bookingnumber = $row['booking'];
+            $ret[$i]->PlatformName = $row['platformName'];
+            $ret[$i]->overdueCheckOut($row);
             $i++;
         }
         return $ret;
@@ -933,10 +1034,48 @@ class Lodging
 
             $r = json_decode($row['rooms']);
 
-            if(is_array($r))
+            if (is_array($r))
             {
                 for($j = 0; $j < count($r); $j++)
                 {
+                    if ($r[$j]->Id == '') :
+
+                        // @var mixed $bookingNumber
+                        $bookingNumber = $row['booking'];
+
+                        // find reservation id from reservation with booking number
+                        $reservation = $db->query("SELECT rooms FROM reservation WHERE booking = '$bookingNumber'");
+
+                        // are we good ?
+                        if ($reservation->num_rows > 0) :
+
+                            // fetch 
+                            $fetch = json_decode($reservation->fetch_assoc()['rooms'])[0];
+
+                            // get number
+                            $number = $fetch->number;
+
+                            // get room categoryid
+                            $categoryId = $fetch->room;
+
+                            // get roomid
+                            $roomId = $db->query("SELECT roomid FROM room WHERE `number` = '$number' AND category  = '$categoryId'");
+
+                            // are we good 
+                            if ($roomId->num_rows > 0) :
+
+                                // feetch result
+                                $roomId = $roomId->fetch_assoc()['roomid'];
+
+                                // add id
+                                $r[$j]->Id = $roomId;
+
+                            endif;
+
+                        endif;
+
+                    endif;
+
                     $ro = new Lodgepixel($subscriber, $r[$j]);
                     array_push($ret[$i]->Rooms, $ro);
                 }
@@ -959,6 +1098,8 @@ class Lodging
             $ret[$i]->Checkouts = json_decode($row['checkouts']);
             $ret[$i]->Bills = doubleval($row['bills']);
             $ret[$i]->Bookingnumber = $row['booking'];
+            $ret[$i]->PlatformName = $row['platformName'];
+            $ret[$i]->overdueCheckOut($row);
             $i++;
         }
         return $ret;
@@ -982,7 +1123,7 @@ class Lodging
         {
             if($filter === "all")
             {
-                $res = $db->query("SELECT * FROM lodging WHERE propertyid = '$property' ORDER BY id DESC");
+                $res = $db->query("SELECT * FROM lodging WHERE propertyid = '$property' AND checkedout=0 ORDER BY id DESC");
             }
             else if($filter === "due-departure")
             {
@@ -1053,6 +1194,46 @@ class Lodging
                     {
                         for($j = 0; $j < count($r); $j++)
                         {
+                            // check for id
+                            if ($r[$j]->Id == '') :
+
+                                // @var mixed $bookingNumber
+                                $bookingNumber = $row['booking'];
+
+                                // find reservation id from reservation with booking number
+                                $reservation = $db->query("SELECT rooms FROM reservation WHERE booking = '$bookingNumber'");
+
+                                // are we good ?
+                                if ($reservation->num_rows > 0) :
+
+                                    // fetch 
+                                    $fetch = json_decode($reservation->fetch_assoc()['rooms'])[0];
+
+                                    // get number
+                                    $number = $fetch->number;
+
+                                    // get room categoryid
+                                    $categoryId = $fetch->room;
+
+                                    // get roomid
+                                    $roomId = $db->query("SELECT roomid FROM room WHERE `number` = '$number' AND category  = '$categoryId'");
+
+                                    // are we good 
+                                    if ($roomId->num_rows > 0) :
+
+                                        // feetch result
+                                        $roomId = $roomId->fetch_assoc()['roomid'];
+
+                                        // add id
+                                        $r[$j]->Id = $roomId;
+
+                                    endif;
+
+                                endif;
+
+                            endif;
+
+                            // load lodgepixel
                             $ro = new Lodgepixel($subscriber, $r[$j]);
                             array_push($ret[$i]->Rooms, $ro);
                         }
@@ -1074,6 +1255,9 @@ class Lodging
                     $ret[$i]->Checkouts = json_decode($row['checkouts']);
                     $ret[$i]->Bills = doubleval($row['bills']);
                     $ret[$i]->Bookingnumber = $row['booking'];
+                    $ret[$i]->PlatformName = $row['platformName'];
+                    $ret[$i]->getReservationID($row, $db);
+                    $ret[$i]->overdueCheckOut($row);
                     $i++;
 
                 endif;
@@ -1081,6 +1265,22 @@ class Lodging
             endif;
         }
         return $ret;
+    }
+
+    public function overdueCheckOut($row) : void
+    {
+        // @var int $time
+        $time = strtotime(date("m/d/Y g:i:s a"));
+
+        // check now
+        if (intval($row['checkout']) < $time)
+        {
+            // build time
+            $time = mktime(12,0,1,date('n', $row['checkout']), date('j', $row['checkout']), date('Y', $row['checkout']));
+
+            // is overdue ?
+            if (time() > $time) $this->IsOverdue = true;
+        }
     }
 
     public static function overdueCount(Subscriber $subscriber)
@@ -1224,7 +1424,7 @@ class Lodging
                     $rangeTime = new DateTime($_REQUEST['dueDateTo']);
 
                     // check now
-                    if ($dateTime2->getTimestamp() <= $rangeTime->getTimestamp()) $canAdd = true;
+                    if ($dateTime2->getTimestamp() <= $rangeTime->getTimestamp() && $dateTime2->getTimestamp() >= $dateTime->getTimestamp()) $canAdd = true;
                 }
                 else
                 {

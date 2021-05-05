@@ -27,13 +27,13 @@
 
 		public function Initialize($arg=null)
         {
-            if($arg != null)
+            if ($arg != null)
             {
                 $db = $this->subscriber->GetDB();
 
                 $res = $db->query("SELECT * FROM review WHERE reviewid='$arg'");
 
-                if($res->num_rows > 0)
+                if ($res->num_rows > 0)
                 {
                     $row = $res->fetch_assoc();
 

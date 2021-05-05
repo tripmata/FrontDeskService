@@ -200,22 +200,26 @@ class Customer
         $copResponse = Convert::ToInt($this->Corporateresponse);
         $internalEmail = substr($this->Id, 0, 5) . '@tripmata.com';
 
-        if($res = $db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
-        {
-            $db->query("UPDATE customer SET `name`='$name',surname='$surname',phone='$phone',email='$email',`password`='$password',country='$country',`state`='$state',city='$city',occupation='$occupation',kinname='$kinname',kinsurname='$kinsurname',organization='$organization',zip='$zip',lastseen='$lastseen',dateofbirth='$dateofbirth',monthofbirth='$monthofbirth',dayofbirth='$dayofbirth',newsletter='$newsletter',active='$active',`status`='$status',sex='$sex',guestid='$guestid',salutation='$salutation',profilepic='$profilepic',idtype='$idtype',idnumber='$idnumber',idimage='$idimage',street='$street',kinaddress='$kinaddress',destination='$destination',origination='$origination',guest='$guest',bank='$bank',accountname='$accountname',accountnumber='$accountnumber',wallet='$wallet',subscription='$subscription',corporate='$corporate',corporate_request='$copRequest',corporate_response='$copResponse',`address`='$address',dob='$dob',internalEmail='$internalEmail' WHERE customerid = '$id'");
-        }
-        else
-        {
-            redo: ;
-            $id = Random::GenerateId(16);
-            if($db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
+        if ($name != '' && $surname != '') :
+
+            if($res = $db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
             {
-                goto redo;
+                $db->query("UPDATE customer SET `name`='$name',surname='$surname',phone='$phone',email='$email',`password`='$password',country='$country',`state`='$state',city='$city',occupation='$occupation',kinname='$kinname',kinsurname='$kinsurname',organization='$organization',zip='$zip',lastseen='$lastseen',dateofbirth='$dateofbirth',monthofbirth='$monthofbirth',dayofbirth='$dayofbirth',newsletter='$newsletter',active='$active',`status`='$status',sex='$sex',guestid='$guestid',salutation='$salutation',profilepic='$profilepic',idtype='$idtype',idnumber='$idnumber',idimage='$idimage',street='$street',kinaddress='$kinaddress',destination='$destination',origination='$origination',guest='$guest',bank='$bank',accountname='$accountname',accountnumber='$accountnumber',wallet='$wallet',subscription='$subscription',corporate='$corporate',corporate_request='$copRequest',corporate_response='$copResponse',`address`='$address',dob='$dob',internalEmail='$internalEmail' WHERE customerid = '$id'");
             }
-            $this->Id = $id;
-            $internalEmail = substr($this->Id, 0, 5) . '@tripmata.com';
-            $db->query("INSERT INTO customer(customerid,created,`name`,surname,phone,email,`password`,country,`state`,city,occupation,kinname,kinsurname,organization,zip,lastseen,dateofbirth,monthofbirth,dayofbirth,newsletter,active,`status`,sex,guestid,salutation,profilepic,idtype,idnumber,idimage,street,kinaddress,destination,origination,guest,bank,accountname,accountnumber,wallet,subscription,corporate,corporate_request,corporate_response,`address`,dob,internalEmail) VALUES ('$id','$created','$name','$surname','$phone','$email','$password','$country','$state','$city','$occupation','$kinname','$kinsurname','$organization','$zip','$lastseen','$dateofbirth','$monthofbirth','$dayofbirth','$newsletter','$active','$status','$sex','$guestid','$salutation','$profilepic','$idtype','$idnumber','$idimage','$street','$kinaddress','$destination','$origination','$guest','$bank','$accountname','$accountnumber','$wallet','$subscription','$corporate','$copRequest','$copResponse','$address','$dob','$internalEmail')");
-        }
+            else
+            {
+                redo: ;
+                $id = Random::GenerateId(16);
+                if($db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
+                {
+                    goto redo;
+                }
+                $this->Id = $id;
+                $internalEmail = substr($this->Id, 0, 5) . '@tripmata.com';
+                $db->query("INSERT INTO customer(customerid,created,`name`,surname,phone,email,`password`,country,`state`,city,occupation,kinname,kinsurname,organization,zip,lastseen,dateofbirth,monthofbirth,dayofbirth,newsletter,active,`status`,sex,guestid,salutation,profilepic,idtype,idnumber,idimage,street,kinaddress,destination,origination,guest,bank,accountname,accountnumber,wallet,subscription,corporate,corporate_request,corporate_response,`address`,dob,internalEmail) VALUES ('$id','$created','$name','$surname','$phone','$email','$password','$country','$state','$city','$occupation','$kinname','$kinsurname','$organization','$zip','$lastseen','$dateofbirth','$monthofbirth','$dayofbirth','$newsletter','$active','$status','$sex','$guestid','$salutation','$profilepic','$idtype','$idnumber','$idimage','$street','$kinaddress','$destination','$origination','$guest','$bank','$accountname','$accountnumber','$wallet','$subscription','$corporate','$copRequest','$copResponse','$address','$dob','$internalEmail')");
+            }
+
+        endif;
     }
 
     public function Delete()

@@ -46,7 +46,7 @@
                     $this->Checkouttime = new WixDate(time());
                 }
 
-                if(isset($obj->Id))
+                if (isset($obj->Id))
                 {
                     parent::Initialize($obj->Id);
                 }

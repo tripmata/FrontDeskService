@@ -60,6 +60,8 @@
             <script type='application/javascript' src='".$cdn."../client/js/croppie.min.js'></script>
             <script type='application/javascript' src='".$cdn."../client/js/datepicker.min.js'></script>
             <script type='application/javascript' src='".$cdn."/js/upload.js'></script>
+
+            <style type='text/css'>.ui.payment-mode-wrapper .menu .item::after{display:none !important;}</style>
         </head>
         <body style=''>
             <input id='pos-type' type='hidden' value='frontdesk_item'/>
@@ -129,6 +131,9 @@
                 </a>
                 <a id='guest-tab' class='item front-desk-tab' onclick='switchTab(this)' style='font-family: Nunito;'>
                     <i class='la la-user' style='font-size: 26px;'></i> &nbsp;Customers
+                </a>
+                <a id='report-tab' class='item front-desk-tab' onclick='switchTab(this)' style='font-family: Nunito;'>
+                    <i class='la la-chart-pie' style='font-size: 26px;'></i> &nbsp;Report
                 </a>
                 
                 <div class='right menu'>

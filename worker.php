@@ -1865,7 +1865,7 @@
                     
                     $ret->Status = "success";
                     $ret->Message = "Successful";
-                    // $ret->Data->test = Lodging::test($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+                    
                 }
             }
         break;

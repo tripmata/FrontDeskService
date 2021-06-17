@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @package Configuration 
  * @author Amadi Ifeanyi <amadiify.com>
@@ -62,7 +63,8 @@ class Configuration
                 'storage'   => '',
                 'messaging' => 'http://localhost:8888/tripmata-suites/Messaging',
                 'origin'    => 'http://localhost:8888/tripmata/',
-                'domain'    => 'http://localhost:8888/tripmata-suites/FrontDeskServices/'
+                'domain'    => 'http://localhost:8888/tripmata-suites/FrontDeskServices/',
+                'listing'   => 'http://localhost:8888/tripmata-suites/ListingServices/',
             ],
 
             // live url configuration
@@ -72,6 +74,7 @@ class Configuration
                 'messaging' => 'http://services.tripmata.net/Messaging/',
                 'origin'    => 'http://tripmata.net/', // should be tripmata.com
                 'domain'    => 'http://services.tripmata.net/FrontDeskServices/', // should be frontdeskservice.tripmata.com 
+                'listing'   => 'http://services.tripmata.net/ListingServices/',
             ]
         ];
 

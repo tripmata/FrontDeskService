@@ -4,6 +4,10 @@
 
     $host = $urlConfiguration->host;
     $cdn = $urlConfiguration->storage;
+
+    // Please update your config.php file for this to work.
+    // Simply run 'php deploy.php pull -/FrontDeskServices/config.php'
+    $DOMAIN = isset($urlConfiguration->listing) ? $urlConfiguration->listing : '';
     
     $loggedUser = null;
 
@@ -105,9 +109,10 @@
                         $page = $_REQUEST['Page'];
                         $perpage = $_REQUEST['Perpage'];
                         $filter = $_REQUEST['filter'];
+                        $source = $_REQUEST['source'];
+                        $payment_type = $_REQUEST['payment_type'];                        
                         //$filtervalue = $_REQUEST['Filtervalue'];
                         
-
                         $ret->Data = [];
                         $store = [];
 
@@ -115,7 +120,7 @@
                         $ret->Perpage = $perpage;
 
                         $ret->noShow = Reservation::noShowCount($property);
-                        $ret->dueToday = Reservation::DueTodayCount($property);
+                        $ret->dueToday = Reservation::DueTodayCount($property);                        
 
                         if ($_REQUEST['searchterm'] != "")
                         {
@@ -123,7 +128,7 @@
                         }
                         else
                         {
-                            $store = Reservation::applyFilter($property, $filter, $_REQUEST['dueDate']);
+                            $store = Reservation::applyFilter($property, $filter, $_REQUEST['dueDate'], $source, $payment_type);
                         }
 
                         $ret->Total = count($store);
@@ -540,8 +545,8 @@
                         $ret->Data->rooms = $roomList;
 
                         //add reservation
-                        $ret->Data->reservations = Reservation::ByPeriod($property);
-                        $ret->Data->lodging = Lodging::byPeriod(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));
+                        $ret->Data->reservations = Reservation::ByPeriod($property, FETCH_FOR_THIS_MONTH_ONLY);
+                        $ret->Data->lodging = Lodging::byPeriod(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword), FETCH_FOR_THIS_MONTH_ONLY);
                         $ret->Status = "success";
                         
                     }
@@ -630,12 +635,16 @@
                             $lodging = new Lodging($subscriber);
                             $lodging->Initialize($_REQUEST['booking']);
                             $lodging->Checkedout = true;
-
+                            $todayDate = strtotime(date("m/d/Y H:i:s", time()));
+                            $lodging->Checkoutdate = $todayDate;
+                            $lodging->Checkout = $todayDate;
                             for($i = 0; $i < count($lodging->Rooms); $i++)
                             {
                                 if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
                                 {
                                     $lodging->Rooms[$i]->Checkedout = true;
+                                    $lodging->Rooms[$i]->Checkout = new WixDate($todayDate);
+                                    $lodging->Rooms[$i]->Checkouttime = new WixDate($todayDate);
                                     $lodging->User = $_REQUEST['posuser'];
                                     $lodging->Save();
                                     break;
@@ -1553,281 +1562,46 @@
                     // endif;
 
                     $std = new stdClass();
-                    $std->Number = $roomNumber;
+                    $std->Number = '';
                     $std->Room = $cat;
                     $std->RoomId = $data['id'];
 
-                    // get a room number
-                    $room = $db->query("SELECT `number`,roomid FROM room WHERE category = '{$cat->Id}' AND `status` = 1 ORDER BY id DESC");
-                    
-                    // do we have a room
-                    if ($room->num_rows > 0) :
+                    // @var string $randomRoomNumber
+                    $randomRoomNumber = '';
 
-                        // get today
-                        $today = intval($data['checkin']);
+                    // @var string $url
+                    $url = $DOMAIN . 'print-property-avaliability/' . $cat->Id . '/' . $cat->Property->Id . '/' . intval($data['checkin']) . '/' . intval($data['checkout']);
 
-                        // get tomorrow
-                        $tomorrow = intval($data['checkout']);
+                    // Check for avaliability
+                    $ch = curl_init($url);
 
-                        // @var array $result
-                        $result = [];
+                    // get response with request
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-                        // fetch result
-                        while($row = $room->fetch_assoc()) :
+                    // handle response
+                    $response = curl_exec($ch);
 
-                            // get number
-                            $number = $row['number'];
+                    // close connection
+                    curl_close($ch);
 
-                            // get the room id
-                            $roomid = $row['roomid'];
+                    // read object
+                    $response = json_decode(trim($response));
 
-                            // check for room in reservation
-                            $reservations = $db->query("SELECT checkindate,checkoutdate,rooms,booking,checkedin FROM reservation WHERE cancelled = 0 AND noshow = 0 and (checkindate = '$today' or checkoutdate = '$today' or checkoutdate > '$today') and (rooms LIKE '%$cat->Id%') and property = '{$cat->Property->Id}'");
+                    if ($response->avaliability > 0) :
 
-                            // check reservation
-                            if ($reservations->num_rows > 0) while ($row = $reservations->fetch_object()) :
+                        // loop through
+                        foreach ($response->rooms as $number => $bool) :
 
-                                // read room category
-                                $roomCategory = json_decode($row->rooms)[0];
+                            // get the first
+                            $std->Number = $number;
 
-                                // check room and number
-                                if ($roomCategory->room == $cat->Id && $roomCategory->number == $number) :
-
-                                    $result[$number][] = (object) [
-                                        'checkin'   => intval($row->checkindate),
-                                        'checkout'  => intval($row->checkoutdate),
-                                        'checkedin' => intval($row->checkedin),
-                                        'booking'   => $row->booking
-                                    ];
-
-                                endif;
-
-                            endwhile;
-
-                            // check lodging
-                            $lodging = $db->query('SELECT booking,checkin,checkout,checkincount,checkedout,rooms FROM lodging WHERE checkedout = 0 and (checkin = \''.$today.'\' or checkout = \''.$today.'\' or checkout > \''.$today.'\') and rooms LIKE \'%'.$roomid.'%\' and propertyid = \''.$cat->Property->Id.'\'');
-
-                            if ($lodging->num_rows > 0) while($l = $lodging->fetch_object()) :
-
-                                // check booking
-                                $booking = $db->query('SELECT id FROM reservation WHERE booking = '.$l->booking);
-
-                                $result[$number][] = (object) [
-                                    'checkin'       => intval($l->checkin),
-                                    'checkout'      => intval($l->checkout),
-                                    'checkedin'     => intval($l->checkincount),
-                                    'checkedout'    => intval($l->checkedout),
-                                    'booking'       => $l->booking
-                                ];
-
-                            endwhile;
-
-                            // check today
-                            // $rec = $db->query("SELECT id FROM reservation WHERE checkindate = '$today' AND rooms LIKE '%$number%'");
-
-                            // // are we good ?
-                            // if ($rec->num_rows == 0) :
-
-                            //     // add number
-                            //     $std->Number = $number;
-
-                            //     // break all
-                            //     break;
-
-                            // endif;
-
-                            // add room number
-                            if (!isset($result[$number])) $result[$number] = true;
-
-                        endwhile;
-
-
-                        // @var array $roomsLogged
-                        $roomsLogged = [];
-
-                        // load all result
-                        if (count($result) > 0) foreach($result as $roomNumber => $resultArray) :
-
-                            if (is_array($resultArray)) :
-
-                                foreach ($resultArray as $row) :
-
-                                    // is avaliable
-                                    $isAvaliable = false;
-
-                                    if (isset($row->checkedout)) :
-                
-                                        // avaliable in lodging table
-                                        if ($row->checkout == $today) :
-                
-                                            if ($today == strtotime(date('m/d/Y')) ) : 
-                
-                                                // passed 12
-                                                //if (intval(date('H')) < 12) : $avaliability--; endif;
-                
-                                            else:
-                
-                                                //$avaliability--;
-                
-                                            endif;
-
-                                            // room is avaliable
-                                            $isAvaliable = true;
-                
-                                        else:
-                
-                                            if ($row->checkout > $today || $row->checkin == $today) :
-                
-                                                // room is not avaliable
-                                                $isAvaliable = false;
-                
-                                            else:
-                
-                                                // room is avaliable
-                                                $isAvaliable = true;
-                
-                                            endif;
-                
-                                        endif;
-                
-                                        // record now
-                                        $roomsLogged[$roomNumber] = $isAvaliable;
-                
-                                    elseif ($row->checkedin == 0):
-                
-                                        if (!isset($roomsLogged[$roomNumber])) :
-                
-                                            // avaliable in reservation table
-                                            if ($row->checkin <= $tomorrow && $row->checkin > $today) :
-                
-                                                // do notin
-                                                // room is avaliable
-                                                $isAvaliable = true;
-                
-                                            else :
-                
-                                                
-                                                if ($row->checkin > $today) :
-                
-                                                    // var_dump($roomNumber);
-                                                    // var_dump($row->checkin - $day);
-                                                    $date1 = new \DateTime();
-                                                    $date1->setTimestamp($row->checkin);
-                    
-                                                    $date2 = new \DateTime();
-                                                    $date2->setTimestamp($today);
-                    
-                    
-                                                    if ($row->checkout != $today) :
-                    
-                                                        if ($row->checkin == $tomorrow) :
-                    
-                                                            // if ($avaliability < 0) $avaliability = 0;
-                    
-                                                            // $avaliability += 1;
-                    
-                                                            // if ($avaliability > $rooms->rowCount()) : $avaliability = $rooms->rowCount(); endif;
-
-                                                            // room is avaliable
-                                                            $isAvaliable = true;
-                    
-                                                        else:
-                    
-                                                            if ($row->checkin < $tomorrow) :
-                    
-                                                                // room is not avaliable
-                                                                $isAvaliable = false;
-                    
-                                                            endif;
-                    
-                                                        endif;
-                    
-                                                    else:
-                    
-                                                    endif;
-                    
-                                                else:
-                    
-                                                    if ($row->checkin == $today) :
-                    
-                                                        // room is not avaliable
-                                                        $isAvaliable = false;
-                    
-                                                    else:
-                    
-                                                        if ($row->checkin <= $today and $row->checkout >= $tomorrow) :
-                    
-                                                            // room is not avaliable
-                                                            $isAvaliable = false;
-                    
-                                                        else:
-                    
-                                                            if ($row->checkout > $today) :
-                    
-                                                                // room is not avaliable
-                                                                $isAvaliable = false;
-                    
-                                                            else:
-                    
-                                                                if ($row->checkout == $today && $avaliability == 0) :
-                                                                    
-                                                                    // room is avaliable
-                                                                    $isAvaliable = true;
-                    
-                                                                endif;
-                    
-                                                                //if ( && $avaliability < $rooms->rowCount()) $avaliability++;
-                    
-                                                            endif;
-                    
-                                                        endif;
-                    
-                                                    endif;
-                    
-                                                endif;
-                                                
-                
-                                            endif;
-                
-                                            // add room number
-                                            $roomsLogged[$roomNumber] = $isAvaliable;
-                
-                                        endif;
-                
-                                    endif;
-
-                                    // add now
-                                    if (!isset($roomsLogged[$roomNumber])) $roomsLogged[$roomNumber] = $isAvaliable;
-                
-                                endforeach;
-
-                            else:   
-
-                                // add now
-                                if (!isset($roomsLogged[$roomNumber])) $roomsLogged[$roomNumber] = true;
-
-                            endif;
-
-                        endforeach;
-
-                        // add free room
-                        foreach ($roomsLogged as $roomNumber => $status) :
-
-                            // free
-                            if ($status === true) :
-
-                                // add room
-                                $std->Number = $roomNumber;
-
-                                // break now
-                                break;
-
-                            endif;
+                            // break
+                            break;
 
                         endforeach;
 
                     endif;
-
+                    // die;
                     
                     // set now
                     $roomList[] = $std;
@@ -1842,20 +1616,13 @@
                     $checkInDate  = new \DateTime($data['checkin']);
                     $checkOutDate = new \DateTime($data['checkout']);
 
-                    $checkin = date('m/d/Y', $checkInDate->getTimestamp());
-                    $checkout = date('m/d/Y', $checkOutDate->getTimestamp());
-
-                    $checkin = new WixDate(strtotime($checkin));
-                    $checkout = new WixDate(strtotime($checkout));
-
-                    $reservation->Checkoutdate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
-           
-                    $reservation->Checkindate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
+                    $reservation->Checkoutdate = strtotime($checkOutDate->format('m/d/Y'));
+                    $reservation->Checkindate = strtotime($checkInDate->format('m/d/Y'));
                     $reservation->Rooms = $roomList;
                     $reservation->Save();
 
                     // save payment
-                    if ($reservation->Paid)
+                    if ($reservation->Paid && intval($reservation->Paidamount) > 0)
                     {
                         // save into revenue
                         Revenue::SaveFromArray([
@@ -1984,13 +1751,166 @@
                     if ($user->Role->Frontdesk->WriteAccess) $ret->Status = 'success';
 
                 endif;
-
             }
 
             // set the message
             $ret->Message = 'Your session has expired. Please logout and login again to continue. Also check the "Data Que" tab to track progress on your next login.';
 
         break;
+        case 'update reservation':
+
+            if (!isset($_REQUEST['reservation_id'])) return $router->printJson(['status' => 'error', 'message' => 'Missing Reservation ID. Invalid Request.']);
+            $user = new User();
+            $user->Initialize($_REQUEST['usersess']);
+
+            $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+            $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+            
+            // get database instance
+            $db = DB::GetDB();
+
+            $reservation = $db->query("SELECT * FROM reservation WHERE reservationid = '{$_REQUEST['reservation_id']}'");
+
+            // do we have such reservation
+            if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
+
+            $reservationObj = new Reservation($_REQUEST['reservation_id']);            
+
+            $old_reservation = $reservation->fetch_assoc();
+            if ($old_reservation['updated_by'] !== null) return $router->printJson(['status' => 'error', 'message' => 'This reservation has been updated before']);
+
+            unset($old_reservation['rooms']);   
+            
+            $old_reservation['category'] = $reservationObj->Rooms[0]->Room->Id;
+            $old_reservation['room'] = $reservationObj->Rooms[0]->Number;
+
+            $roomArray = [];
+            $roomObj = (object)null;
+            $roomObj->room = $_REQUEST['category_id'];
+            $roomObj->number = $_REQUEST['roomNo'];
+            array_push($roomArray, $roomObj);
+            $rooms = json_encode($roomArray);
+
+            $stringifiedReservation = json_encode($old_reservation); 
+            
+            $id = $_REQUEST['reservation_id'];
+            $user_id = $_REQUEST['user_id'];
+            $total = floatval($_REQUEST['total']);
+            $paidAmount = floatval($_REQUEST['paidAmount']);
+            // $category = $_REQUEST['category'];
+
+            $customer_id = $_REQUEST['customer_id'];            
+
+            $checkin = new WixDate(intval($_REQUEST['checkIn']) / 1000);
+            $checkout = new WixDate(intval($_REQUEST['checkOut']) / 1000);
+
+            $indate = strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year);
+			$outdate = strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year);            
+
+            $discount = 0;
+            // $checkedin = 1;
+            $paid = 1;
+
+            $db->query("UPDATE reservation SET checkindate='$indate',checkoutdate='$outdate' WHERE reservationid = '$id'");
+
+            if($db->query("UPDATE reservation SET paid='$paid',rooms='$rooms',discount='$discount',old_entry='$stringifiedReservation',updated_by='$user_id',customer='$customer_id',paidAmount='$paidAmount',total='$total' WHERE reservationid = '$id'")){
+                return $router->printJson(['status' => 'success', 'Data' => Reservation::ByPeriod($property, FETCH_FOR_THIS_MONTH_ONLY)]);                      
+            }else{
+                return $router->printJson(['status' => 'error', 'message' => 'Could not update reservation']);                      
+            }
+            
+                        
+        break;
+        case 'update to checkedin': 
+            if (!isset($_REQUEST['id'])) return $router->printJson(['status' => 'error', 'message' => 'Missing Reservation ID. Invalid Request.']);
+            $user = new User();
+            $user->Initialize($_REQUEST['usersess']);
+
+            $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+            $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+            
+            // get database instance
+            $db = DB::GetDB();
+
+            // verify id
+            $reservation = $db->query("SELECT * FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
+
+            // do we have such reservation
+            if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
+
+            // get row
+            $row = $reservation->fetch_assoc();
+            
+            $checkedin = 1;
+            $activated = 1;
+            $noshow = 0;
+            
+            // if($res = $db->query("SELECT reservationid FROM reservation WHERE reservationid='{$_REQUEST['id']}'")->num_rows > 0)
+            // {
+            //     $db->query("UPDATE reservation SET checkedin='$checkedin' WHERE reservationid = '{$_REQUEST['id']}'");
+            //     $ret->Status = "success";
+            //     $ret->Message = "Marked as checked in";
+            // }else{
+            //     $ret->Status = "error";
+            //     $ret->Message = "There was error, please try again.";
+            // }
+
+            $movedToLodging = Reservation::moveReservationToLodging($subscriber, $property);
+            if($movedToLodging)
+            {
+                $ret->Status = "success";
+                $ret->Message = "Marked as checked in";
+            }else{
+                $ret->Status = "error";
+                $ret->Message = "There was error, please try again.";
+            }
+
+        break;
+        case 'occupancy report': 
+            if (isset($_REQUEST['usersess'])){
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+    
+                if ($user->Id != "") $user->UpdateSeenTime();
+    
+                if ($user->Role->Frontdesk->WriteAccess){
+                    $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+                    $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+    
+                    $ret->Data = new stdClass();
+                    $ret->Data->occupancyReport = Lodging::occupancyReport($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+                    
+                    $ret->Status = "success";
+                    $ret->Message = "Successful";
+                    // $ret->Data->test = Lodging::test($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+                }
+            }
+        break;
+        case 'checkin report':
+            if (isset($_REQUEST['usersess'])){
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+    
+                if ($user->Id != "") $user->UpdateSeenTime();
+    
+                if ($user->Role->Frontdesk->WriteAccess){
+                    $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+                    $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+    
+                    $ret->Data = new stdClass();
+                    $ret->Data->checkinReport = Lodging::checkinReport($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+    
+                    $ret->Status = "success";
+                    $ret->Message = "Successful";
+
+                    $todayDate = strtotime(date("m/d/Y H:i:s", time()));
+                    $ret->Data->test2 = new WixDate($todayDate);
+                    $ret->Data->test = $todayDate;
+                    
+                }
+            }
+        break;
+
     }
 
     echo json_encode($ret);

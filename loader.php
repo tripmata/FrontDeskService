@@ -5,6 +5,8 @@
  * 
  * Autoload Classes and interfaces
  */
+// constant to fetch for this month only
+define('FETCH_FOR_THIS_MONTH_ONLY', '0x231t');
 
 // load config file
 require_once 'config.php';

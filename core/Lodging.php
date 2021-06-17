@@ -36,6 +36,7 @@ class Lodging
 
     private $subscriber = null;
     public $PlatformName = '';
+    public $Checkoutdate = 0;
 
     function __construct(Subscriber $subscriber)
     {
@@ -134,6 +135,7 @@ class Lodging
 
                 $this->Checkin = new WixDate($row['checkin']);
                 $this->Checkout = new WixDate($row['checkout']);
+                $this->Checkoutdate = new WixDate($row['checkout_date']);
                 $this->Days = Convert::ToInt($row['days']);
                 $this->Adults = Convert::ToInt($row['adults']);
                 $this->Children = Convert::ToInt($row['children']);
@@ -190,6 +192,7 @@ class Lodging
         $rooms = "[]";
         $checkin = Convert::ToInt($this->Checkin);
         $checkout = Convert::ToInt($this->Checkout);
+        $checkout_date = Convert::ToInt($this->Checkoutdate);
         $days = Convert::ToInt($this->Days);
         $adults = Convert::ToInt($this->Adults);
         $children = Convert::ToInt($this->Children);
@@ -253,7 +256,7 @@ class Lodging
 
         if($res = $db->query("SELECT lodgingid FROM lodging WHERE lodgingid='$id'")->num_rows > 0)
         {
-            $db->query("UPDATE lodging SET guest='$guest',subguest='$subguest',rooms='$rooms',checkin='$checkin',checkout='$checkout',`days`='$days',adults='$adults',children='$children',pet='$pet',paid='$paid',total='$total',taxes='$taxes',discount='$discount',paidamount='$paidamount',roomcategory='$roomcategory',user='$user',checkouts='$checkouts',bills='$bills',booking='$booking',checkincount='$checkincount',checkoutcount='$checkoutcount',checkedout='$checkedout',base_total='$baseTotal',platformName = '$platform' WHERE lodgingid = '$id'");
+            $db->query("UPDATE lodging SET guest='$guest',subguest='$subguest',rooms='$rooms',checkin='$checkin',checkout='$checkout',`days`='$days',adults='$adults',children='$children',pet='$pet',paid='$paid',total='$total',taxes='$taxes',discount='$discount',paidamount='$paidamount',roomcategory='$roomcategory',user='$user',checkouts='$checkouts',bills='$bills',booking='$booking',checkincount='$checkincount',checkoutcount='$checkoutcount',checkedout='$checkedout',base_total='$baseTotal',platformName = '$platform',checkout_date='$checkout_date' WHERE lodgingid = '$id'");
         }
         else
         {
@@ -269,7 +272,7 @@ class Lodging
                     goto redo;
                 }
                 $this->Id = $id;
-                $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total,platformName) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal', '$platform')");
+                $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total,platformName,checkout_date) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal', '$platform','$checkout_date')");
             
             endif;
         }
@@ -997,6 +1000,12 @@ class Lodging
         $ret = array();
         $i = 0;
 
+        // can we fetch for this month only
+        $fetchForThisMonth = $start == FETCH_FOR_THIS_MONTH_ONLY ? true : false;
+
+        // update start
+        $start = ($fetchForThisMonth) ? null : $start;
+
         if($start == null)
         {
             $start = time();
@@ -1009,9 +1018,28 @@ class Lodging
 
         $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
 
+        // build query string
+        $queryString = "SELECT * FROM lodging WHERE propertyid = '$property'";
+
+        // get the first day of this month
+        $dayStart = strtotime(date('m') . '/1/' . date('Y'));
+
+        // get next month
+        $nextMonth = intval(date('m', strtotime('+1 month')));
+
+        // get year for next month
+        $nextMonthYear = $nextMonth < intval(date('m')) ? (intval(date('Y')) + 1) : intval(date('Y'));
+
+        // get the last day of next month
+        $dayEnd = strtotime( $nextMonth . '/' . date('t', strtotime('+1 month')) . '/' . $nextMonthYear);
+
+        // can we fetch for this month only
+        // $queryString .= ($fetchForThisMonth) ? "AND (checkin >= '$dayStart' AND checkin <= '$dayEnd') AND checkedout = 0" : '';
+        $queryString .= ($fetchForThisMonth) ? "" : '';
+        
         //$res = $db->query("SELECT * FROM lodging WHERE checkin >= '$start' AND checkout <= '$stop'");
 
-        $res = $db->query("SELECT * FROM lodging WHERE propertyid = '$property'");
+        $res = $db->query($queryString);
         while(($row = $res->fetch_assoc()) != null)
         {
             $ret[$i] = new Lodging($subscriber);
@@ -1082,6 +1110,7 @@ class Lodging
             }
 
 
+            $ret[$i]->Checkoutdate = new WixDate($row['checkout_date']);
             $ret[$i]->Checkin = new WixDate($row['checkin']);
             $ret[$i]->Checkout = new WixDate($row['checkout']);
             $ret[$i]->Days = Convert::ToInt($row['days']);
@@ -1436,4 +1465,138 @@ class Lodging
         // return bool
         return $canAdd;
     }
+
+    public static function occupancyReport(Subscriber $subscriber, $start=null, $stop=null)
+    {
+        $db = $subscriber->GetDB();
+        $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
+
+        // checkout='$dDate' AND
+
+        $param =  isset($start) && isset($stop) ? "lodging.checkin >= '$start' AND lodging.checkout <= $stop" : "";
+
+        $queryString = "SELECT CONCAT(user.name,' ' ,user.surname) AS staff,
+        lodging.*, CONCAT(customer.name,' ', customer.surname) AS fullname
+        FROM user 
+        JOIN lodging ON user.userid = lodging.user 
+        JOIN customer ON lodging.guest = customer.customerid
+        WHERE lodging.propertyid = '$property'";
+        // WHERE lodging.checkin >= $start AND lodging.checkout <= $stop";
+        // JOIN customer ON reservation.customer = customer.customerid";
+
+        $res = $db->query($queryString);
+        $data = array();
+        $i = 1; 
+        while(($row = $res->fetch_assoc()) != null)
+        {
+            $lodging = (object)null;
+            $lodging->sn = $i;
+            $lodging->data = $row;
+            $lodging->rooms = json_decode($row['rooms']);
+
+            $data[] = $lodging;
+            $i++;
+        }
+
+        $lodgingData = [];
+        foreach ($data as $item) {
+            if(count($item->rooms) > 0){
+                $roomId = $item->rooms[0]->Id;
+                $sql = "SELECT roomcategory.name, room.number from room 
+                        JOIN roomcategory 
+                        ON room.category = roomcategory.roomcategoryid
+                        WHERE room.roomid = '$roomId'";
+
+                $query = $db->query($sql);
+                while(($row = $query->fetch_assoc()) != null):
+                    $category = $row['name']; 
+                    $number = $row['number']; 
+                endwhile;
+                
+
+                $obj = (object)null;
+                $obj->fullname = $item->data['fullname'];
+                $obj->staff = $item->data['staff'];
+                $obj->room_number = $number;
+                $obj->room_category = $category;
+                $obj->bill = doubleval($item->data['bills']);
+                $obj->checkin_date = new WixDate($item->data['checkin']);
+                $obj->checkout_date = new WixDate($item->data['checkout']);
+                $obj->created = new WixDate($item->data['created']);
+                $obj->discount = doubleval($item->data['discount']);
+                $obj->paidamount = doubleval($item->data['paidamount']);
+                $obj->total = doubleval($item->data['total']);
+                $lodgingData[] = $obj;
+            }
+        }
+        return $lodgingData;
+
+    }
+
+    public static function checkinReport(Subscriber $subscriber, $start=null, $stop=null)
+    {
+        $db = $subscriber->GetDB();
+        $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
+
+        $param =  isset($start) && isset($stop) ? "lodging.checkin >= '$start' AND lodging.checkout <= $stop" : "";
+
+        $queryString = "SELECT * FROM lodging WHERE propertyid = '$property'";
+        $res = $db->query($queryString);
+        $data = array();
+        while(($row = $res->fetch_assoc()) != null)
+        {
+            $lodging = (object)null;
+            $lodging->data = $row;
+            $lodging->rooms = json_decode($row['rooms']);
+
+            $lodging->Guest = new CustomerByProperty($subscriber);
+            $lodging->Guest->Initialize($row['guest']);
+
+            $data[] = $lodging;
+        }
+
+        return $data;
+    }
+
+    public static function test(Subscriber $subscriber, $start=null, $stop=null)
+    {
+        $db = $subscriber->GetDB();
+        $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
+
+        $extra = isset($start) && isset($stop) ? "lodging.checkin >= '$start' AND lodging.checkin <= $stop AND" : '';
+
+        // $queryString = "SELECT * FROM lodging WHERE $extra propertyid = '$property'";
+
+        $queryString = "SELECT CONCAT(user.name,' ' ,user.surname) AS staff,
+        lodging.checkin, lodging.checkout, 
+        lodging.total, lodging.paidamount, 
+        lodging.discount, lodging.paidamount, lodging.guest,
+        lodging.bills, lodging.created, lodging.rooms,
+        CONCAT(customer.name,' ', customer.surname) AS fullname
+        FROM user JOIN lodging 
+        ON user.userid = lodging.user 
+        JOIN customer ON lodging.guest = customer.customerid
+        WHERE lodging.propertyid = '$property'";
+
+        $res = $db->query($queryString);
+
+        $data = array();
+        while(($row = $res->fetch_assoc()) != null)
+        {
+            $lodging = (object)null;
+            $lodging->Data = $row;
+            $lodging->Rooms = json_decode($row['rooms']);
+            $lodging->Checkin = new WixDate($row['checkin']);
+            $lodging->Checkout = new WixDate($row['checkout']);
+            $lodging->Guest = new CustomerByProperty($subscriber);
+            $lodging->Guest->Initialize($row['guest']);
+
+            $data[] = $lodging;
+        }
+
+        return $data;
+
+    }
+
+
 }

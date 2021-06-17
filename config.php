@@ -14,6 +14,11 @@ class Configuration
     const MODE = 'development';
 
     /**
+     * @var string $host
+     */
+    const HOST = 'frontdesk.test';
+
+    /**
      * @method Configuration database
      * @return object
      * 
@@ -28,8 +33,8 @@ class Configuration
             'development' => [
                 'host' => 'localhost',
                 'user' => 'root',
-                'pass' => 'root',
-                'name' => 'esusuttq_tripmata'
+                'pass' => '',
+                'name' => 'tripmata'
             ],
 
             // live connection settings
@@ -59,10 +64,10 @@ class Configuration
             // development url configuration
             'development' => [
                 'host'      => '',
-                'storage'   => '',
-                'messaging' => 'http://localhost:8888/tripmata-suites/Messaging',
-                'origin'    => 'http://localhost:8888/tripmata/',
-                'domain'    => 'http://localhost:8888/tripmata-suites/FrontDeskServices/'
+                'storage'   => 'http://frontdesk.test/Storage/',
+                'messaging' => 'http://services.tripmata.net/Messaging/',
+                'origin'    => 'http://tripmata.net/',
+                'domain'    => 'http://frontdesk.test/FrontDeskServices/'
             ],
 
             // live url configuration
@@ -92,7 +97,7 @@ class Configuration
         $mode = Configuration::MODE;
 
         // read http_host
-        if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost:') === false) $mode = 'live';
+        if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], self::HOST) === false) $mode = 'live';  
 
         // return configuration as an object
         return (object) (isset($config[$mode]) ? $config[$mode] : $config['development']);

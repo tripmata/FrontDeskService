@@ -54,11 +54,9 @@
 		public $DatabasePassword = "";
 		public $DatabaseUser = "";
 
-		//non-db-members
+		// non-db-members
 		public $Price = 0;
-
 		public $Meta = "";
-
 		public $Star = 1;
 
 		function __construct($arg=null)
@@ -218,9 +216,7 @@
 
 			//Deleting Associated Objects
 			/*n			$this->State->Delete();
-
 			$this->City->Delete();
-
 			$this->Owner->Delete();
 			*/
 		}
@@ -231,7 +227,7 @@
 			$ret = array();
 			$i = 0;
 
-			$res = $db->query("SELECT * FROM property WHERE type LIKE '%$term%' OR name LIKE '%$term%' OR statename LIKE '%$term%' OR cityname LIKE '%$term%' OR phone1 LIKE '%$term%' OR phone2 LIKE '%$term%' OR email1 LIKE '%$term%' OR email2 LIKE '%$term%' OR banner LIKE '%$term%' OR formtype LIKE '%$term%' OR description LIKE '%$term%' OR address LIKE '%$term%' OR state LIKE '%$term%' OR city LIKE '%$term%' OR facilities LIKE '%$term%' OR gallery LIKE '%$term%' OR checkinm LIKE '%$term%' OR checkinh LIKE '%$term%' OR checkoutmin LIKE '%$term%' OR checkouth LIKE '%$term%' OR canceldays LIKE '%$term%' OR cancelhours LIKE '%$term%' OR rating LIKE '%$term%' OR vies LIKE '%$term%' OR cashonly LIKE '%$term%' OR cancellation LIKE '%$term%' OR damagedeposit LIKE '%$term%' OR earlycheckout LIKE '%$term%' OR partialpayment LIKE '%$term%' OR partialpaypercentage LIKE '%$term%' OR status LIKE '%$term%' OR approved LIKE '%$term%' OR suspended LIKE '%$term%' OR recomended LIKE '%$term%' OR damagedepositamount LIKE '%$term%' OR partialpayamount LIKE '%$term%' OR owner LIKE '%$term%' OR hms LIKE '%$term%'");
+			$res = $db->query("SELECT * FROM property WHERE `type` LIKE '%$term%' OR `name` LIKE '%$term%' OR statename LIKE '%$term%' OR cityname LIKE '%$term%' OR phone1 LIKE '%$term%' OR phone2 LIKE '%$term%' OR email1 LIKE '%$term%' OR email2 LIKE '%$term%' OR banner LIKE '%$term%' OR formtype LIKE '%$term%' OR `description` LIKE '%$term%' OR `address` LIKE '%$term%' OR `state` LIKE '%$term%' OR city LIKE '%$term%' OR facilities LIKE '%$term%' OR gallery LIKE '%$term%' OR checkinm LIKE '%$term%' OR checkinh LIKE '%$term%' OR checkoutmin LIKE '%$term%' OR checkouth LIKE '%$term%' OR canceldays LIKE '%$term%' OR cancelhours LIKE '%$term%' OR rating LIKE '%$term%' OR vies LIKE '%$term%' OR cashonly LIKE '%$term%' OR cancellation LIKE '%$term%' OR damagedeposit LIKE '%$term%' OR earlycheckout LIKE '%$term%' OR partialpayment LIKE '%$term%' OR partialpaypercentage LIKE '%$term%' OR `status` LIKE '%$term%' OR approved LIKE '%$term%' OR suspended LIKE '%$term%' OR recomended LIKE '%$term%' OR damagedepositamount LIKE '%$term%' OR partialpayamount LIKE '%$term%' OR `owner` LIKE '%$term%' OR hms LIKE '%$term%'");
 			while(($row = $res->fetch_assoc()) != null)
 			{
                 $ret[$i] = new Property();
@@ -390,7 +386,7 @@
 
             $id = is_a($customer, "Customer") ? $customer->Id : $customer;
 
-            $res = $db->query("SELECT * FROM property WHERE owner='$id'");
+            $res = $db->query("SELECT * FROM property WHERE `owner`='$id'");
             while(($row = $res->fetch_assoc()) != null)
             {
                 $ret[$i] = new Property();
@@ -531,7 +527,7 @@
             $ret = array();
             $i = 0;
 
-            $res = $db->query("SELECT propertyid FROM property WHERE (approved=1) && (status=1) && (type LIKE '%$term%' OR name LIKE '%$term%' OR statename LIKE '%$term%' OR cityname LIKE '%$term%' OR phone1 LIKE '%$term%' OR phone2 LIKE '%$term%' OR email1 LIKE '%$term%' OR email2 LIKE '%$term%' OR description LIKE '%$term%' OR address LIKE '%$term%' OR state LIKE '%$term%' OR city LIKE '%$term%' OR facilities LIKE '%$term%')");
+            $res = $db->query("SELECT propertyid FROM property WHERE (approved=1) && (`status`=1) && (`type` LIKE '%$term%' OR `name` LIKE '%$term%' OR statename LIKE '%$term%' OR cityname LIKE '%$term%' OR phone1 LIKE '%$term%' OR phone2 LIKE '%$term%' OR email1 LIKE '%$term%' OR email2 LIKE '%$term%' OR `description` LIKE '%$term%' OR `address` LIKE '%$term%' OR `state` LIKE '%$term%' OR city LIKE '%$term%' OR facilities LIKE '%$term%')");
             while(($row = $res->fetch_assoc()) != null)
             {
                 $ret[$i] = new Property($row['propertyid']);
@@ -544,7 +540,7 @@
         {
             $db = DB::GetDB();
             $ret = 0;
-			$ret = $db->query("SELECT propertyid FROM property WHERE (approved=1) && (status=1)")->num_rows;
+			$ret = $db->query("SELECT propertyid FROM property WHERE (approved=1) && (`status`=1)")->num_rows;
 			$db->close();
             return $ret;
 		}

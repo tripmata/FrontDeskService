@@ -34,6 +34,7 @@
 		public $Occupied = 0;
 
 		public $Meta = "";
+		public $Property = '';
 
 		private $subscriber = null;
 
@@ -56,7 +57,7 @@
 
                     $this->Id = $row['roomcategoryid'];
                     $this->Created = new WixDate($row['created']);
-                    $this->Name = $row['name'];
+                    $this->Name = defined('MASK_CATEGORY_NAME') ? preg_replace('/[\s]+/', '_', $row['name']) : $row['name'];
                     $this->Promotext = $row['promotext'];
                     $this->Status = Convert::ToBool($row['status']);
                     $this->Reservable = Convert::ToBool($row['reservable']);
@@ -76,6 +77,7 @@
                     $this->Childrenpolicy = Convert::ToInt($row['childrenpolicy']);
                     $this->Pets = Convert::ToBool($row['pets']);
                     $this->Meta = $row['meta'];
+					$this->Property = new Property($row['propertyid']);
                 }
             }
         }

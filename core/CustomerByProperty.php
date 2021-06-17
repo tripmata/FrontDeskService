@@ -212,30 +212,34 @@ class CustomerByProperty
         $copResponse = Convert::ToInt($this->Corporateresponse);
         $property = $_REQUEST['propertyid'];
 
-        if($res = $db->query("SELECT customerid FROM customerByProperty WHERE customerid='$id' AND propertyid = '$id'")->num_rows > 0)
-        {
-            $db->query("UPDATE customer SET `name`='$name',surname='$surname',phone='$phone',email='$email',`password`='$password',country='$country',`state`='$state',city='$city',occupation='$occupation',kinname='$kinname',kinsurname='$kinsurname',organization='$organization',zip='$zip',lastseen='$lastseen',dateofbirth='$dateofbirth',monthofbirth='$monthofbirth',dayofbirth='$dayofbirth',newsletter='$newsletter',active='$active',`status`='$status',sex='$sex',guestid='$guestid',salutation='$salutation',profilepic='$profilepic',idtype='$idtype',idnumber='$idnumber',idimage='$idimage',street='$street',kinaddress='$kinaddress',destination='$destination',origination='$origination',guest='$guest',bank='$bank',accountname='$accountname',accountnumber='$accountnumber',wallet='$wallet',subscription='$subscription',corporate='$corporate',corporate_request='$copRequest',corporate_response='$copResponse',dob='$dob',`address`='$address' WHERE customerid = '$id'");
-        }
-        else
-        {
-            if ($db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows == 0)
+        if ($name != '' && $surname != '') :
+
+            if($res = $db->query("SELECT customerid FROM customerByProperty WHERE customerid='$id' AND propertyid = '$id'")->num_rows > 0)
             {
-                redo: ;
-                $id = Random::GenerateId(16);
-                if($db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
+                $db->query("UPDATE customer SET `name`='$name',surname='$surname',phone='$phone',email='$email',`password`='$password',country='$country',`state`='$state',city='$city',occupation='$occupation',kinname='$kinname',kinsurname='$kinsurname',organization='$organization',zip='$zip',lastseen='$lastseen',dateofbirth='$dateofbirth',monthofbirth='$monthofbirth',dayofbirth='$dayofbirth',newsletter='$newsletter',active='$active',`status`='$status',sex='$sex',guestid='$guestid',salutation='$salutation',profilepic='$profilepic',idtype='$idtype',idnumber='$idnumber',idimage='$idimage',street='$street',kinaddress='$kinaddress',destination='$destination',origination='$origination',guest='$guest',bank='$bank',accountname='$accountname',accountnumber='$accountnumber',wallet='$wallet',subscription='$subscription',corporate='$corporate',corporate_request='$copRequest',corporate_response='$copResponse',dob='$dob',`address`='$address' WHERE customerid = '$id'");
+            }
+            else
+            {
+                if ($db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows == 0)
                 {
-                    goto redo;
+                    redo: ;
+                    $id = Random::GenerateId(16);
+                    if($db->query("SELECT customerid FROM customer WHERE customerid='$id'")->num_rows > 0)
+                    {
+                        goto redo;
+                    }
+                    $this->Id = $id;
+                    $internalEmail = substr($id, 0, 5) . '@tripmata.com';
+                    $db->query("INSERT INTO customer (customerid,created,`name`,surname,phone,email,`password`,country,`state`,city,occupation,kinname,kinsurname,organization,zip,lastseen,dateofbirth,monthofbirth,dayofbirth,newsletter,active,`status`,sex,guestid,salutation,profilepic,idtype,idnumber,idimage,street,kinaddress,destination,origination,guest,bank,accountname,accountnumber,wallet,subscription,corporate,corporate_request,corporate_response,dob,`address`,internalEmail) VALUES ('$id','$created','$name','$surname','$phone','$email','$password','$country','$state','$city','$occupation','$kinname','$kinsurname','$organization','$zip','$lastseen','$dateofbirth','$monthofbirth','$dayofbirth','$newsletter','$active','$status','$sex','$guestid','$salutation','$profilepic','$idtype','$idnumber','$idimage','$street','$kinaddress','$destination','$origination','$guest','$bank','$accountname','$accountnumber','$wallet','$subscription','$corporate','$copRequest','$copResponse','$dob','$address','$internalEmail')");
+                    
+                    // send mail
                 }
-                $this->Id = $id;
-                $internalEmail = substr($id, 0, 5) . '@tripmata.com';
-                $db->query("INSERT INTO customer (customerid,created,`name`,surname,phone,email,`password`,country,`state`,city,occupation,kinname,kinsurname,organization,zip,lastseen,dateofbirth,monthofbirth,dayofbirth,newsletter,active,`status`,sex,guestid,salutation,profilepic,idtype,idnumber,idimage,street,kinaddress,destination,origination,guest,bank,accountname,accountnumber,wallet,subscription,corporate,corporate_request,corporate_response,dob,`address`,internalEmail) VALUES ('$id','$created','$name','$surname','$phone','$email','$password','$country','$state','$city','$occupation','$kinname','$kinsurname','$organization','$zip','$lastseen','$dateofbirth','$monthofbirth','$dayofbirth','$newsletter','$active','$status','$sex','$guestid','$salutation','$profilepic','$idtype','$idnumber','$idimage','$street','$kinaddress','$destination','$origination','$guest','$bank','$accountname','$accountnumber','$wallet','$subscription','$corporate','$copRequest','$copResponse','$dob','$address','$internalEmail')");
-                
-                // send mail
+
+                // add to property
+                $db->query("INSERT INTO customerByProperty (customerid, propertyid) VALUES ('$id', '$property')");
             }
 
-            // add to property
-            $db->query("INSERT INTO customerByProperty (customerid, propertyid) VALUES ('$id', '$property')");
-        }
+        endif;
     }
 
     // check if customer has been banned
@@ -303,11 +307,11 @@ class CustomerByProperty
     // fetch customer id before saving
     public function fetchCustomerIdBeforeSaving($saveOnChecking = false)
     {
-        if (Customer::EmailExist($this->Email))
+        if ($this->Email != '' && Customer::EmailExist($this->Email))
         {
             $customer = Customer::ByEmail($this->Email);
         }
-        elseif (Customer::PhoneExist($this->Phone))
+        elseif ($this->Phone != '' && Customer::PhoneExist($this->Phone))
         {
             $customer = Customer::ByPhone($this->Phone);
         }

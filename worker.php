@@ -4,6 +4,10 @@
 
     $host = $urlConfiguration->host;
     $cdn = $urlConfiguration->storage;
+
+    // Please update your config.php file for this to work.
+    // Simply run 'php deploy.php pull -/FrontDeskServices/config.php'
+    $DOMAIN = isset($urlConfiguration->listing) ? $urlConfiguration->listing : '';
     
     $loggedUser = null;
 
@@ -48,6 +52,7 @@
     }
 
     $job = isset($_REQUEST['job']) ? urldecode($_REQUEST['job']) : '<nada>';
+    $property = isset($_REQUEST['property']) ? $_REQUEST['property'] : (isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : null);
 
     switch($job)
     {
@@ -104,9 +109,10 @@
                         $page = $_REQUEST['Page'];
                         $perpage = $_REQUEST['Perpage'];
                         $filter = $_REQUEST['filter'];
+                        $source = $_REQUEST['source'];
+                        $payment_type = $_REQUEST['payment_type'];                        
                         //$filtervalue = $_REQUEST['Filtervalue'];
                         
-
                         $ret->Data = [];
                         $store = [];
 
@@ -114,15 +120,15 @@
                         $ret->Perpage = $perpage;
 
                         $ret->noShow = Reservation::noShowCount($property);
-                        $ret->dueToday = Reservation::DueTodayCount($property);
+                        $ret->dueToday = Reservation::DueTodayCount($property);                        
 
-                        if($_REQUEST['searchterm'] != "")
+                        if ($_REQUEST['searchterm'] != "")
                         {
                             $store = Reservation::Search($property, $_REQUEST['searchterm']);
                         }
                         else
                         {
-                            $store = Reservation::applyFilter($property, $filter, $_REQUEST['dueDate']);
+                            $store = Reservation::applyFilter($property, $filter, $_REQUEST['dueDate'], $source, $payment_type);
                         }
 
                         $ret->Total = count($store);
@@ -140,8 +146,7 @@
                     }
                 }
             }
-            break;
-
+        break;
         case "add customer id":
             if(isset($_REQUEST['usersess']))
             {
@@ -212,7 +217,7 @@
 
                         $ret->overDue = Lodging::overdueCount($subscriber);
                         $ret->dueToday = Lodging::dueTodayCount($subscriber);
-                        $ret->arrival = Lodging::checkInTodayCount($subscriber);
+                        $ret->arrival = Lodging::checkInTodayCount($subscriber); 
 
                         if($_REQUEST['searchterm'] != "")
                         {
@@ -432,6 +437,11 @@
                                 }
                             }
                         }
+                        else
+                        {
+                            // set default status
+                            $ret->status = 'success';
+                        }
                     }
                 }
             }
@@ -498,6 +508,9 @@
                     $user->UpdateSeenTime();
                 }
 
+                // mask name
+                if (!defined('MASK_CATEGORY_NAME')) define('MASK_CATEGORY_NAME', true);
+
                 $settings = null;
 
                 if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
@@ -513,7 +526,7 @@
                         for($i = 0; $i < count($roomCat); $i++)
                         {
                             $r = new stdClass();
-                            $r->category = $roomCat[$i]->Name;
+                            $r->category = preg_replace('/[\s]+/', '_', $roomCat[$i]->Name);
                             $r->price = $roomCat[$i]->Price;
                             $r->Id = $roomCat[$i]->Id;
                             $r->occupancy = $roomCat[$i]->Baseoccupancy;
@@ -532,9 +545,10 @@
                         $ret->Data->rooms = $roomList;
 
                         //add reservation
-                        $ret->Data->reservations = Reservation::ByPeriod($property);
-                        $ret->Data->lodging = Lodging::byPeriod(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));
+                        $ret->Data->reservations = Reservation::ByPeriod($property, FETCH_FOR_THIS_MONTH_ONLY);
+                        $ret->Data->lodging = Lodging::byPeriod(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword), FETCH_FOR_THIS_MONTH_ONLY);
                         $ret->Status = "success";
+                        
                     }
                 }
             }
@@ -621,12 +635,16 @@
                             $lodging = new Lodging($subscriber);
                             $lodging->Initialize($_REQUEST['booking']);
                             $lodging->Checkedout = true;
-
+                            $todayDate = strtotime(date("m/d/Y H:i:s", time()));
+                            $lodging->Checkoutdate = $todayDate;
+                            $lodging->Checkout = $todayDate;
                             for($i = 0; $i < count($lodging->Rooms); $i++)
                             {
                                 if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
                                 {
                                     $lodging->Rooms[$i]->Checkedout = true;
+                                    $lodging->Rooms[$i]->Checkout = new WixDate($todayDate);
+                                    $lodging->Rooms[$i]->Checkouttime = new WixDate($todayDate);
                                     $lodging->User = $_REQUEST['posuser'];
                                     $lodging->Save();
                                     break;
@@ -649,23 +667,27 @@
                             $reservation->Adult = Convert::ToInt($guest->adults);
                             $reservation->Children = Convert::ToInt($guest->children);
 
-                            if(doubleval($_REQUEST['paidAmount']) > 0)
+                            if (doubleval($_REQUEST['paidAmount']) > 0)
                             {
                                 $reservation->Paidamount = doubleval($_REQUEST['paidAmount']);
                                 $reservation->Paid = true;
                             }
 
+                            // add the platform
+                            $reservation->PlatformName = isset($_REQUEST['platform']) ? $_REQUEST['platform'] : $reservation->PlatformName;
+
                             $customer = null;
 
-                            if (CustomerByProperty::PhoneExist($guest->phone))
+                            if ($guest->phone != '' && CustomerByProperty::PhoneExist($guest->phone))
                             {
                                 $customer = CustomerByProperty::ByPhone($guest->phone);
                             }
-                            elseif (CustomerByProperty::EmailExist($guest->email))
+                            elseif ($guest->email != '' && CustomerByProperty::EmailExist($guest->email))
                             {
                                 $customer = CustomerByProperty::ByEmail($guest->email);
                             }
-                            else
+                            
+                            if ($customer == null)
                             {
                                 $customer = new CustomerByProperty(new Subscriber());
                                 $customer->Phone = $guest->phone;
@@ -713,8 +735,9 @@
                                     $cat->Initialize($r[0]);
 
                                     $std = new stdClass();
-                                    $std->Number = 1;
+                                    $std->Number = $r[2];
                                     $std->Room = $cat;
+                                    $std->RoomId = $r[0];
 
                                     array_push($roomList, $std);
                                 }
@@ -731,9 +754,30 @@
                             $reservation->Rooms = $roomList;
                             $reservation->Save();
 
+                            // save payment
+                            if ($reservation->Paid)
+                            {
+                                // save into revenue
+                                Revenue::SaveFromArray([
+                                    'amount'    => $reservation->Paidamount,
+                                    'property'  => $property,
+                                    'mode'      => $_REQUEST['method'],
+                                    'customer'  => $reservation->Customer->Id,
+                                    'code'      => 'reservation',
+                                    'remark'    => 'Reservation from frontdesk',
+                                    'userid'    => $_REQUEST['posuser'],
+                                    'resid'     => $reservation->Id
+                                ]);
+
+                                // get db instance
+                                $db = DB::GetDB();
+
+                                // update paid amount manually
+                                $db->query("UPDATE reservation SET paidamount = '{$reservation->Paidamount}' WHERE reservationid = '{$reservation->Id}'");
+                            }
+
                             // apply coupon
                             Coupon::applyCoupon($reservation->Bookingnumber);
-
 
                             //retrieve and reprocess reservation
                             $ret->Data = new stdClass();
@@ -747,7 +791,7 @@
                         if ($_REQUEST['operation'] === "add payment")
                         {
                             $reservation = new Reservation($_REQUEST['booking']);
-                            $reservation->Paidamount += doubleval($reservation->Paidamount) + doubleval($_REQUEST['amount']);
+                            $reservation->Paidamount = doubleval($reservation->Paidamount) + doubleval($_REQUEST['amount']);
                             $reservation->Paid = true;
 
                             $paytrack = new Lodgingtransaction($subscriber);
@@ -760,6 +804,17 @@
 
                             $reservation->Save();
 
+                            // save into revenue
+                            Revenue::SaveFromArray([
+                                'amount'    => doubleval($_REQUEST['amount']),
+                                'property'  => $property,
+                                'mode'      => $_REQUEST['method'],
+                                'customer'  => $reservation->Customer->Id,
+                                'code'      => 'payment',
+                                'remark'    => 'Additional payment for reservation',
+                                'userid'    => $_REQUEST['posuser']
+                            ]);
+                            
                             $ret->Status = "success";
                             $ret->Message = "transaction saved";
                             $ret->Data = null;
@@ -787,6 +842,9 @@
                             $lodging->Paidamount = doubleval($lodging->Paidamount) + doubleval($_REQUEST['amount']);
                             $lodging->Paid = true;
 
+                            // get the booking id
+                            $bookingid = $lodging->Bookingnumber;  
+
                             /*
                             $paytrack = new Lodgingtransaction($subscriber);
                             $paytrack->Paytime = new WixDate($_REQUEST['time']);
@@ -798,17 +856,41 @@
                             $paytrack->Save();
                             */
 
-                            $lodging->Save();
+                            // save into revenue
+                            Revenue::SaveFromArray([
+                                'amount'    => $_REQUEST['amount'],
+                                'property'  => $property,
+                                'mode'      => $_REQUEST['method'],
+                                'customer'  => $lodging->Guest->Id,
+                                'code'      => 'deposit',
+                                'remark'    => 'Frontdesk lodging deposit',
+                                'userid'    => $_REQUEST['posuser']
+                            ]);
+
+                            // get db instance
+                            $db = DB::GetDB();
+
+                            // update reservation table
+                            $query = $db->query("SELECT id FROM reservation WHERE booking = '{$bookingid}'");
+
+                            // are we good ?
+                            if ($query->num_rows > 0) :
+
+                                // update paidamount
+                                $db->query("UPDATE reservation SET paidamount = '{$lodging->Paidamount}', paid = 1 WHERE booking = '{$bookingid}'");
+
+                            endif;
 
                             $ret->Status = "success";
                             $ret->Message = "transaction saved";
                             $ret->Data = null;
+
+                            $lodging->Save();
                         }
 
                         if ($_REQUEST['operation'] === "checkin")
                         {
                             $lodging = new Lodging($subscriber);
-
 
                             $guest = json_decode($_REQUEST['guest']);
                             $items = explode(",", $_REQUEST['items']);
@@ -816,6 +898,7 @@
                             $customer = null;
 
                             $rooms = [];
+                            $newReservation = false;
 
                             if (Convert::ToBool($_REQUEST['fromReserve']))
                             {
@@ -823,21 +906,56 @@
                                 $reservation->Checkedin = true;
                                 $reservation->Activated = true;
                                 $reservation->Noshow = false;
+                                $reservation->ArrivalTime = date('g:i a');
 
-                                if(doubleval($_REQUEST['paidAmount']) > 0)
+                                // add the platform
+                                $reservation->PlatformName = isset($_REQUEST['platform']) ? $_REQUEST['platform'] : $reservation->PlatformName;
+
+                                // @var bool $paid
+                                $paid = $reservation->Paid;
+                                $amountPaid = doubleval($reservation->Paidamount) + doubleval($reservation->Discount);
+
+                                if (doubleval($_REQUEST['paidAmount']) > 0 && ($amountPaid < doubleval($reservation->Total)))
                                 {
+                                    // if (doubleval($reservation->Paidamount) == 0) :
+
+                                    //     // update paid amount
+                                    //     $reservation->Paidamount = doubleval($_REQUEST['paidAmount']);
+
+                                    // else:
+
+                                    //     if ($_REQUEST['paidAmount'] == $reservation->Paidamount) :
+
+                                    //         // sum 
+                                    //         $sumTotal = ($reservation->Paidamount + $_REQUEST['paidAmount'] + $reservation->Discount);
+
+                                    //         // apply a  rule to check reservation total
+                                    //         if ($sumTotal == $reservation->Total) :
+
+                                    //             $reservation->Paidamount = $sumTotal;
+
+                                    //         endif;
+
+                                    //     elseif ($_REQUEST['paidAmount'] < $reservation->Paidamount) :
+
+                                    //     endif;
+                                        
+                                    // endif;
+
                                     $reservation->Paidamount = (doubleval($reservation->Paidamount)) + doubleval($_REQUEST['paidAmount']);
                                     $reservation->Paid = true;
                                 }
+
                                 $reservation->Save();
 
                                 $lodging->Guest = $reservation->Customer;
-
+                                $lodging->Bookingnumber = $reservation->Bookingnumber;
                                 $lodging->Children = Convert::ToInt($reservation->Children);
                                 $lodging->Adults = Convert::ToInt($reservation->Adult);
 
                                 // save customer
-                                if (!CustomerByProperty::PhoneExist($reservation->Customer->Phone) && !CustomerByProperty::EmailExist($reservation->Customer->Email))
+                                if ( ($reservation->Customer->Phone != '' && !CustomerByProperty::PhoneExist($reservation->Customer->Phone)) && 
+                                ($reservation->Customer->Email != '' && !CustomerByProperty::EmailExist($reservation->Customer->Email)) )
                                 {
                                     $customer = new CustomerByProperty(new Subscriber());
                                     $customer->Email = $reservation->Customer->Email;
@@ -845,19 +963,41 @@
                                     $customer->Phone = $reservation->Customer->Phone;
                                     $customer->fetchCustomerIdBeforeSaving(CustomerByProperty::SAVE_ON_CHECKIN);
                                 }
+
+                                if ($paid == false)
+                                {
+                                    // save into revenue
+                                    Revenue::SaveFromArray([
+                                        'amount'    => $reservation->Paidamount,
+                                        'property'  => $property,
+                                        'mode'      => $_REQUEST['method'],
+                                        'customer'  => $customer->Id,
+                                        'code'      => 'lodging',
+                                        'remark'    => 'Lodging from frontdesk',
+                                        'userid'    => $_REQUEST['posuser'],
+                                        'resid'     => $reservation->Id
+                                    ]);
+
+                                    // get db instance
+                                    $db = DB::GetDB();
+
+                                    // update paid amount manually
+                                    $db->query("UPDATE reservation SET paidamount = '{$reservation->Paidamount}' WHERE reservationid = '{$reservation->Id}'");
+                                }
                                 
                             }
                             else
                             {
-                                if (CustomerByProperty::PhoneExist($guest->phone))
+                                if ($guest->phone != '' && CustomerByProperty::PhoneExist($guest->phone))
                                 {
                                     $customer = CustomerByProperty::ByPhone($guest->phone);
                                 }
-                                elseif (CustomerByProperty::EmailExist($guest->email))
+                                elseif ($guest->email != '' && CustomerByProperty::EmailExist($guest->email))
                                 {
                                     $customer = CustomerByProperty::ByEmail($guest->email);
                                 }
-                                else
+                                
+                                if ($customer == null)
                                 {
                                     $customer = new CustomerByProperty(new Subscriber());
                                     $customer->Phone = $guest->phone;
@@ -880,6 +1020,61 @@
 
                                 $lodging->Children = Convert::ToInt($guest->children);
                                 $lodging->Adults = Convert::ToInt($guest->adults);
+
+                                // add to reservation
+                                $reservation = new Reservation();
+                                $reservation->Total = doubleval($_REQUEST['total']);
+                                $reservation->Discount = doubleval($_REQUEST['discount']);
+
+                                $reservation->Adult = Convert::ToInt($guest->adults);
+                                $reservation->Children = Convert::ToInt($guest->children);
+                                $reservation->ArrivalTime = date('g:i a');
+
+                                if (doubleval($_REQUEST['paidAmount']) > 0)
+                                {
+                                    $reservation->Paidamount = doubleval($_REQUEST['paidAmount']);
+                                    $reservation->Paid = true;
+                                }
+
+                                // add the platform
+                                $reservation->PlatformName = isset($_REQUEST['platform']) ? $_REQUEST['platform'] : $reservation->PlatformName;
+
+                                $roomList = [];
+
+                                $items = explode(",", $_REQUEST['items']);
+
+                                for ($i = 0; $i < count($items); $i++)
+                                {
+                                    $r = explode(":", $items[$i]);
+
+                                    if(count($r) > 3)
+                                    {
+                                        $cat = new Roomcategory($subscriber);
+                                        $cat->Initialize($r[0]);
+
+                                        $std = new stdClass();
+                                        $std->Number = $r[2];
+                                        $std->Room = $cat;
+                                        $std->RoomId = $r[0];
+
+                                        array_push($roomList, $std);
+                                    }
+                                }
+
+                                $reservation->Customer = $customer;
+                                $reservation->Property = $property;
+                                $reservation->Checkedin = 1;
+
+                                $checkin = new WixDate(intval($_REQUEST['checkoutdate']));
+                                $checkout = new WixDate(intval($_REQUEST['checkindate']));
+
+                                $reservation->Checkoutdate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
+                                $reservation->Checkindate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
+                                $reservation->Rooms = $roomList;
+
+                                $newReservation = true;
+
+                                //$reservation->Save();
                             }
 
                             // $guest = Guest::ByCustomer($subscriber, $lodging->Guest->Id);
@@ -904,11 +1099,30 @@
                             {
                                 $lodging->Paidamount = doubleval($_REQUEST['paidAmount']);
                                 $lodging->Paid = true;
+
+                                if (Convert::ToBool($_REQUEST['fromReserve']) == false)
+                                {
+                                    // save into revenue
+                                    Revenue::SaveFromArray([
+                                        'amount'    => $lodging->Paidamount,
+                                        'property'  => $property,
+                                        'mode'      => $_REQUEST['method'],
+                                        'customer'  => $lodging->Guest->Id,
+                                        'code'      => 'lodging',
+                                        'remark'    => 'Lodging from frontdesk',
+                                        'userid'    => $_REQUEST['posuser'],
+                                        'resid'     => $reservation->Id
+                                    ]);
+                                }
+
                             }
                             
                             $lodging->Discount = doubleval($_REQUEST['discount']);
                             $lodging->Taxes = doubleval($_REQUEST['taxes']);
                             $lodging->Total = doubleval($_REQUEST['total']);
+
+                            // add the platform
+                            $lodging->PlatformName = isset($_REQUEST['platform']) ? $_REQUEST['platform'] : $lodging->PlatformName;
 
 
                             $rooms = [];
@@ -961,13 +1175,23 @@
                             $lodging->Checkincount = count($rooms);
                             $lodging->Save();
 
+                            // save reservation
+                            if ($newReservation) :
+
+                                // add the booking id
+                                $reservation->Bookingnumber = $lodging->Bookingnumber;
+
+                                // save the reservation
+                                $reservation->Save();
+
+                            endif;
+ 
                             // apply coupon
                             if (Convert::ToBool($_REQUEST['fromReserve']) == false)
                             {
                                 // apply coupon
                                 Coupon::applyCoupon($lodging->Bookingnumber);
                             }
-
 
                             //Retrieve data for processing
                             $ret->Data = new stdClass();
@@ -999,7 +1223,7 @@
                             $ret->Message = "No show marked. Pending Confirmation from Customer.";
                             $ret->Data = null;
 
-                            if ($reservation->IsOnline == 1 && floatval($reservation->Paidamount) > 0)
+                            if ($reservation->IsOnline == 1)
                             {
                                 // send confirmation email
                                 $reservation->sendConfirmationMail();
@@ -1008,20 +1232,19 @@
 
                         if ($_REQUEST['operation'] === "cancel reservation")
                         {
-                            $reservation = new Reservation($_REQUEST['booking']);
+                            $reservation = new Reservation($_REQUEST['reservationid']);
                             $reservation->Cancelled = true;
                             $reservation->Noshow = false;
                             $reservation->Save();
 
                             $ret->Status = "success";
-                            $ret->Message = "No show marked";
+                            $ret->Message = "Reservation canceled successfully";
                             $ret->Data = null;
                         }
                     }
                 }
             }
-            break;
-
+        break;
         case "update admin user password":
 
             break;
@@ -1091,11 +1314,34 @@
             {
                 // update reservation
                 $db->query("UPDATE reservation SET noshow = 1, isConfirmedByGuest = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+
+                // condition
+                $condition = json_decode($row['refundPaymentCondition']);
+                
+                // save revenue
+                Revenue::SaveFromArray([
+                    'amount'    => $row['paidamount'],
+                    'property'  => $row['property'],
+                    'mode'      => $condition->method,
+                    'customer'  => $row['customer'],
+                    'code'      => 'refund',
+                    'remark'    => 'Refund from super admin',
+                    'userid'    => $condition->loggedBy
+                ]);
             }
             else
             {
-                // update reservation
-                $db->query("UPDATE reservation SET noshow = 2, isConfirmedByGuest = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+                if ($row['paid'] == 0) :
+
+                    // update reservation
+                    $db->query("UPDATE reservation SET noshow = 1, isConfirmedByGuest = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+
+                else:
+                    
+                    // update reservation
+                    $db->query("UPDATE reservation SET noshow = 2, isConfirmedByGuest = 1 WHERE reservationid = '{$_REQUEST['id']}'");
+
+                endif;
             }
 
             // TODO: Perform refund policy if customer made payment already
@@ -1187,6 +1433,467 @@
                 }
             }
         break;
+        case 'get report':
+            if (isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                if ($user->Id != "") $user->UpdateSeenTime();
+
+                $settings = null;
+
+                // update status
+                $ret->Message = 'Not Read permission granted';
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
+                {
+                    if ($user->Role->Frontdesk->ReadAccess)
+                    {
+                       // @var Subscriber $subscriber
+                       $subscriber = new Subscriber();
+                       
+                       // load revenue
+                       $revenue = new Revenue($subscriber);
+
+                       // update status
+                       $ret->Message = 'No report at this time';
+
+                       // get total income
+                       $ret->Income = Revenue::TotalRevenue($user);
+                       $ret->Refunds = Revenue::TotalRefunds($user);
+
+                       // are we good ?
+                       if ($ret->Income > 0 || $ret->Refunds > 0)
+                       {
+                          $ret->Status = 'success';
+                          $ret->Message = 'Report generated';
+                          $ret->Data = Revenue::applyFilter();
+                          
+                          if (count($ret->Data) == 0) $ret->Message = 'No record found!';
+                       }
+                    }
+                }
+            }
+        break;
+        case 'make user self reservation':
+
+            // get the user token
+            $token = isset($_REQUEST['token']) ? $_REQUEST['token'] : null;
+
+            // are we good ?
+            if ($token !== null) :
+
+                // get db instance
+                $db = DB::GetDB();
+
+                // verify token
+                $query = $db->query("SELECT sessionid FROM `session` WHERE token = '{$token}'");
+
+                // are we good ?
+                if ($query->num_rows > 0) :
+
+                    // get token record
+                    $tokenRecord = $query->fetch_assoc();
+
+                    // read data
+                    parse_str(urldecode($_REQUEST['data']), $data);
+
+                    // start here
+                    $reservation = new Reservation();
+                    $reservation->Discount = isset($data['discount_total']) ? doubleval($data['discount_total']) : 0;
+                    $reservation->Total = doubleval($data['total']) + $reservation->Discount; 
+
+                    $reservation->Adult = Convert::ToInt($data['adults']);
+                    $reservation->Children = Convert::ToInt($data['children']);
+                    $reservation->ArrivalTime = isset($data['arrival_time']) ? $data['arrival_time'] : $reservation->ArrivalTime;
+
+                    // add paid amount
+                    if (!isset($data['paidAmount'])) $data['paidAmount'] = 0;
+
+                    if (doubleval($data['paidAmount']) > 0)
+                    {
+                        $reservation->Paidamount = doubleval($data['paidAmount']);
+                        $reservation->Paid = true;
+                    }
+
+                    $customer = null;
+
+                    // customer id
+                    $customerId = $data['customerid'];
+
+                    // get customer email address
+                    $customerInfo = $db->query("SELECT email, phone FROM customer WHERE customerid = '$customerId'");
+
+                    // fetch result
+                    $customerInfo = $customerInfo->fetch_assoc();
+
+                    // do we have an email
+                    if ($customerInfo['email'] != '') :
+
+                        // load customer by email address
+                        $customer = Customer::ByEmail($customerInfo['email']);
+
+                    else:
+
+                        // load customer by phone
+                        $customer = Customer::ByPhone($customerInfo['phone']);
+
+                    endif;
+
+                    // load subscriber
+                    $subscriber = new Subscriber();
+
+                    $roomList = [];
+
+                    $cat = new Roomcategory($subscriber);
+                    $cat->Initialize($data['id']);
+                    $roomNumber = '001';
+
+                    // get a room number
+                    // $rooms = $db->query("SELECT RAND(*) FROM room WHERE category = '{$data['id']}' LIMIT 0, 1");
+
+                    // // are we good ?
+                    // if ($rooms->num_rows > 0) :
+
+                    //     // update room number
+                    //     $roomNumber = $rooms->fetch_assoc()['number'];
+
+                    // endif;
+
+                    $std = new stdClass();
+                    $std->Number = '';
+                    $std->Room = $cat;
+                    $std->RoomId = $data['id'];
+
+                    // @var string $randomRoomNumber
+                    $randomRoomNumber = '';
+
+                    // @var string $url
+                    $url = $DOMAIN . 'print-property-avaliability/' . $cat->Id . '/' . $cat->Property->Id . '/' . intval($data['checkin']) . '/' . intval($data['checkout']);
+
+                    // Check for avaliability
+                    $ch = curl_init($url);
+
+                    // get response with request
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+                    // handle response
+                    $response = curl_exec($ch);
+
+                    // close connection
+                    curl_close($ch);
+
+                    // read object
+                    $response = json_decode(trim($response));
+
+                    if ($response->avaliability > 0) :
+
+                        // loop through
+                        foreach ($response->rooms as $number => $bool) :
+
+                            // get the first
+                            $std->Number = $number;
+
+                            // break
+                            break;
+
+                        endforeach;
+
+                    endif;
+                    // die;
+                    
+                    // set now
+                    $roomList[] = $std;
+
+                    // load property
+                    $property = $cat->Property;
+
+                    $reservation->Customer = $customer;
+                    $reservation->Property = $property;
+
+                    // get diffrence
+                    $checkInDate  = new \DateTime($data['checkin']);
+                    $checkOutDate = new \DateTime($data['checkout']);
+
+                    $reservation->Checkoutdate = strtotime($checkOutDate->format('m/d/Y'));
+                    $reservation->Checkindate = strtotime($checkInDate->format('m/d/Y'));
+                    $reservation->Rooms = $roomList;
+                    $reservation->Save();
+
+                    // save payment
+                    if ($reservation->Paid && intval($reservation->Paidamount) > 0)
+                    {
+                        // save into revenue
+                        Revenue::SaveFromArray([
+                            'amount'    => $reservation->Paidamount,
+                            'property'  => $property,
+                            'mode'      => 'online',
+                            'customer'  => $reservation->Customer->Id,
+                            'code'      => 'reservation',
+                            'remark'    => 'Online reservation',
+                            'userid'    => '',
+                            'resid'     => $reservation->Id
+                        ]);
+                    }
+
+                    // reservation is online
+                    $db->query("UPDATE reservation SET isonline = 1 WHERE reservationid = '{$reservation->Id}'");
+
+                    // apply coupon
+                    Coupon::applyCoupon($reservation->Bookingnumber);
+
+                    //retrieve and reprocess reservation
+                    $ret->Data = new stdClass();
+                    $ret->Data->type = "reservation";
+                    $ret->Data->content = Reservation::ByPeriod($property);
+                    $ret->Data->reservationId = $reservation->Id;
+
+                    $ret->Status = "success";
+                    $ret->Message = "Reservation saved";
+
+                    // delete token
+                    if ($tokenRecord['sessionid'] == 'id_' . $customer->Id) :
+
+                        // delete token
+                        $db->query("DELETE FROM `session` WHERE token = '{$token}'");
+
+                    endif;
+                    
+
+                endif;
+
+            endif;
+
+        break;
+        case 'record revenue' :
+
+            // get the user token
+            $token = isset($_REQUEST['token']) ? $_REQUEST['token'] : null;
+
+            // are we good ?
+            if ($token !== null) :
+
+                // get db instance
+                $db = DB::GetDB();
+
+                // verify token
+                $query = $db->query("SELECT sessionid FROM `session` WHERE token = '{$token}'");
+
+                // are we good ?
+                if ($query->num_rows > 0) :
+
+                    Revenue::SaveFromArray([
+                        'amount'    => (isset($_REQUEST['amount'])      ? $_REQUEST['amount'] : ''),
+                        'property'  => (isset($_REQUEST['property'])    ? $_REQUEST['property'] : ''),
+                        'mode'      => (isset($_REQUEST['mode'])        ? $_REQUEST['mode'] : ''),
+                        'customer'  => (isset($_REQUEST['customer'])    ? $_REQUEST['customer'] : ''),
+                        'code'      => (isset($_REQUEST['code'])        ? $_REQUEST['code'] : ''),
+                        'remark'    => (isset($_REQUEST['remark'])      ? $_REQUEST['remark'] : ''),
+                        'resid'     => (isset($_REQUEST['resid'])       ? $_REQUEST['resid'] : ''),
+                        'userid'    => ''
+                    ]);
+
+                endif;
+            
+            endif;
+
+        break;
+        case 'create tmp account':
+
+            // get the user token
+            $token = isset($_REQUEST['token']) ? $_REQUEST['token'] : null;
+
+            // are we good ?
+            if ($token !== null) :
+
+                // get db instance
+                $db = DB::GetDB();
+
+                // verify token
+                $query = $db->query("SELECT sessionid FROM `session` WHERE token = '{$token}'");
+
+                // are we good ?
+                if ($query->num_rows > 0) :
+
+                    // create account
+                    $customer = new Customer(new Subscriber());
+                    $customer->Phone = isset($_REQUEST['phone']) ? $_REQUEST['phone'] : '';
+                    $customer->Email = isset($_REQUEST['email']) ? $_REQUEST['email'] : '';
+                    $customer->Name = $_REQUEST['name'];
+                    $customer->Surname = $_REQUEST['surname'];
+                    $customer->Country = 'ng';
+                    $customer->Save();
+
+                    // delete token
+                    $db->query("DELETE FROM `session` WHERE token = '{$token}'");
+
+                    // all good
+                    $ret->Status = 'success';
+                    $ret->Message = 'Account Created successfully';
+
+                endif;
+
+            endif;
+
+        break;
+        case 'check network connection':
+
+            if (isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                $settings = null;
+
+                if ($user->Id == 'adxc0' || $user->Id != '') :
+
+                    if ($user->Role->Frontdesk->WriteAccess) $ret->Status = 'success';
+
+                endif;
+            }
+
+            // set the message
+            $ret->Message = 'Your session has expired. Please logout and login again to continue. Also check the "Data Que" tab to track progress on your next login.';
+
+        break;
+        case 'update reservation':
+
+            if (!isset($_REQUEST['reservation_id'])) return $router->printJson(['status' => 'error', 'message' => 'Missing Reservation ID. Invalid Request.']);
+            $user = new User();
+            $user->Initialize($_REQUEST['usersess']);
+
+            $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+            $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+            
+            // get database instance
+            $db = DB::GetDB();
+
+            $reservation = $db->query("SELECT * FROM reservation WHERE reservationid = '{$_REQUEST['reservation_id']}'");
+
+            // do we have such reservation
+            if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
+
+            $reservationObj = new Reservation($_REQUEST['reservation_id']);            
+
+            $old_reservation = $reservation->fetch_assoc();
+            if ($old_reservation['updated_by'] !== null) return $router->printJson(['status' => 'error', 'message' => 'This reservation has been updated before']);
+
+            unset($old_reservation['rooms']);   
+            
+            $old_reservation['category'] = $reservationObj->Rooms[0]->Room->Id;
+            $old_reservation['room'] = $reservationObj->Rooms[0]->Number;
+
+            $roomArray = [];
+            $roomObj = (object)null;
+            $roomObj->room = $_REQUEST['category_id'];
+            $roomObj->number = $_REQUEST['roomNo'];
+            array_push($roomArray, $roomObj);
+            $rooms = json_encode($roomArray);
+
+            $stringifiedReservation = json_encode($old_reservation); 
+            
+            $id = $_REQUEST['reservation_id'];
+            $user_id = $_REQUEST['user_id'];
+            $total = floatval($_REQUEST['total']);
+            $paidAmount = floatval($_REQUEST['paidAmount']);
+            // $category = $_REQUEST['category'];
+
+            $customer_id = $_REQUEST['customer_id'];            
+
+            $checkin = new WixDate(intval($_REQUEST['checkIn']) / 1000);
+            $checkout = new WixDate(intval($_REQUEST['checkOut']) / 1000);
+
+            $indate = strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year);
+			$outdate = strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year);            
+
+            $discount = 0;
+            // $checkedin = 1;
+            $paid = 1;
+
+            $db->query("UPDATE reservation SET checkindate='$indate',checkoutdate='$outdate' WHERE reservationid = '$id'");
+
+            if($db->query("UPDATE reservation SET paid='$paid',rooms='$rooms',discount='$discount',old_entry='$stringifiedReservation',updated_by='$user_id',customer='$customer_id',paidAmount='$paidAmount',total='$total' WHERE reservationid = '$id'")){
+                return $router->printJson(['status' => 'success', 'Data' => Reservation::ByPeriod($property, FETCH_FOR_THIS_MONTH_ONLY)]);                      
+            }else{
+                return $router->printJson(['status' => 'error', 'message' => 'Could not update reservation']);                      
+            }
+            
+                        
+        break;
+        case 'update to checkedin': 
+            if (!isset($_REQUEST['id'])) return $router->printJson(['status' => 'error', 'message' => 'Missing Reservation ID. Invalid Request.']);
+            $user = new User();
+            $user->Initialize($_REQUEST['usersess']);
+
+            $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+            $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+            
+            // get database instance
+            $db = DB::GetDB();
+
+            // verify id
+            $reservation = $db->query("SELECT * FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
+
+            // do we have such reservation
+            if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
+
+            $movedToLodging = Reservation::moveReservationToLodging($subscriber, $property);
+            if($movedToLodging)
+            {
+                $ret->Status = "success";
+                $ret->Message = "Marked as checked in";
+            }else{
+                $ret->Status = "error";
+                $ret->Message = "There was error, please try again.";
+            }
+
+        break;
+        case 'occupancy report': 
+            if (isset($_REQUEST['usersess'])){
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+    
+                if ($user->Id != "") $user->UpdateSeenTime();
+    
+                if ($user->Role->Frontdesk->WriteAccess){
+                    $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+                    $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+    
+                    $ret->Data = new stdClass();
+                    $ret->Data->occupancyReport = Lodging::occupancyReport($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+                    
+                    $ret->Status = "success";
+                    $ret->Message = "Successful";
+                    // $ret->Data->test = Lodging::test($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+                }
+            }
+        break;
+        case 'checkin report':
+            if (isset($_REQUEST['usersess'])){
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+    
+                if ($user->Id != "") $user->UpdateSeenTime();
+    
+                if ($user->Role->Frontdesk->WriteAccess){
+                    $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+                    $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+    
+                    $ret->Data = new stdClass();
+                    $ret->Data->checkinReport = Lodging::checkinReport($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
+    
+                    $ret->Status = "success";
+                    $ret->Message = "Successful";
+
+                    $todayDate = strtotime(date("m/d/Y H:i:s", time()));
+                    $ret->Data->test2 = new WixDate($todayDate);
+                    $ret->Data->test = $todayDate;
+                    
+                }
+            }
+        break;
+
     }
 
     echo json_encode($ret);

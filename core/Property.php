@@ -216,9 +216,7 @@
 
 			//Deleting Associated Objects
 			/*n			$this->State->Delete();
-
 			$this->City->Delete();
-
 			$this->Owner->Delete();
 			*/
 		}

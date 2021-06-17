@@ -35,7 +35,7 @@ $ret->Content = "
         <div style='margin-top: 100px;'>
             <form action='' method='post' onsubmit='return login()'>
                 <div class='l-width-3' style='margin: auto;'>
-                    <div class='l-width-7' style='margin: auto;'>   
+                    <div class='l-width-7 login__box' style='margin: auto;'>   
                         <div class='align-c'>
                             <img src='".$cdn."/images/icons/pastel/frontdesk.png' style='width: 100px;'/>
                         </div>

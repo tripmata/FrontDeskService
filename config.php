@@ -15,6 +15,11 @@ class Configuration
     const MODE = 'development';
 
     /**
+     * @var string $host
+     */
+    const HOST = 'frontdesk.test';
+
+    /**
      * @method Configuration database
      * @return object
      * 
@@ -29,8 +34,8 @@ class Configuration
             'development' => [
                 'host' => 'localhost',
                 'user' => 'root',
-                'pass' => 'root',
-                'name' => 'esusuttq_tripmata'
+                'pass' => '',
+                'name' => 'tripmata'
             ],
 
             // live connection settings
@@ -95,7 +100,7 @@ class Configuration
         $mode = Configuration::MODE;
 
         // read http_host
-        if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost:') === false) $mode = 'live';
+        if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], self::HOST) === false) $mode = 'live';  
 
         // return configuration as an object
         return (object) (isset($config[$mode]) ? $config[$mode] : $config['development']);

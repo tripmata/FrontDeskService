@@ -30,7 +30,7 @@
 
         if($user->Property != null)
         {
-            require_once ("pages/frontdesk1.php");
+            require_once ("pages/frontdesk2.php");
         }
         else
         {

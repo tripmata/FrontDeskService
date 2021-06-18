@@ -79,7 +79,7 @@
 			$ret = array();
 			$i = 0;
 
-			$res = $db->query("SELECT * FROM states WHERE name LIKE '%$term%'");
+			$res = $db->query("SELECT * FROM states WHERE name LIKE '%$term%' OR country LIKE '%$term%'");
             while(($row = $res->fetch_assoc()) != null)
             {
                 $ret[$i] = new States();

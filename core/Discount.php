@@ -390,13 +390,13 @@
 
 		public static function All(Subscriber $subscriber)
 		{
-			$db = $subscriber->GetDB();
+			$db = DB::GetDB();
 			$ret = array();
 			$i = 0;
 
-			$property = $_REQUEST['propertyid'];
+			$property = (isset($_REQUEST['propertyid']) && $_REQUEST['propertyid'] != '') ? $_REQUEST['propertyid'] : (isset($_REQUEST['property']) ? $_REQUEST['property'] : '');
 
-			$res = $db->query("SELECT * FROM discount WHERE propertyid = '$property' AND `status` = 1");
+			$res = $db->query("SELECT * FROM `discount` WHERE propertyid = '$property' AND `status` = 1");
 			while(($row = $res->fetch_assoc()) != null)
 			{
 				$ret[$i] = new Discount($subscriber);

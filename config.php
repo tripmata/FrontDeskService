@@ -17,7 +17,7 @@ class Configuration
     /**
      * @var string $host
      */
-    const HOST = 'frontdesk.test';
+    const HOST = 'localhost';
 
     /**
      * @method Configuration database
@@ -34,8 +34,8 @@ class Configuration
             'development' => [
                 'host' => 'localhost',
                 'user' => 'root',
-                'pass' => '',
-                'name' => 'tripmata'
+                'pass' => 'root',
+                'name' => 'esusuttq_tripmata'
             ],
 
             // live connection settings

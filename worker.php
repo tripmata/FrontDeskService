@@ -54,6 +54,9 @@
     $job = isset($_REQUEST['job']) ? urldecode($_REQUEST['job']) : '<nada>';
     $property = isset($_REQUEST['property']) ? $_REQUEST['property'] : (isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : null);
 
+    // set the property id
+    if (!isset($_REQUEST['propertyid'])) $_REQUEST['propertyid'] = $property;
+
     switch($job)
     {
         case "get pos settings":

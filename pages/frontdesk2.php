@@ -50,7 +50,7 @@
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/nunito/stylesheet.css'/>
             <link rel='stylesheet' type='text/css' href='".$cdn."/fonts/varelaround/stylesheet.css'/>
             <link rel='icon' type='image/png' href='".$cdn."/../../logo/favicon.png'/>
-            <script type='text/javascript'>var url = {\"storage\" : \"".$cdn."\", \"host\" : \"".$host."\", \"main\" : \"".$main."\"}</script>
+            <script type='text/javascript'>var url = {\"storage\" : \"".$cdn."\", \"host\" : \"".$host."\", \"main\" : \"".$main."\", \"listing\" : \"".$listing."\"}</script>
             <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.22/pdfmake.min.js'></script>
             <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js'></script>
 

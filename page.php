@@ -9,6 +9,7 @@
     // get host url and cdn url from gateway
     $host = $urlConfiguration->host;
     $cdn = $urlConfiguration->storage;
+    $listing = $urlConfiguration->listing;
 
     // clean $_REQUEST array
     Sanitize::removeHTMLFromRequests();

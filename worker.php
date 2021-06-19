@@ -1913,6 +1913,72 @@
                 }
             }
         break;
+        case 'get states':
+            if(isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                if ($user->Id != "")
+                {
+                    $user->UpdateSeenTime();
+                }
+
+                $settings = null;
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item")
+                {
+                    if ($user->Role->Frontdesk->WriteAccess)
+                    {
+                        $subscriber = new Subscriber();
+
+                        $ret->Status = "success";
+
+                        $page = $_REQUEST['Page'];
+                        $perpage = $_REQUEST['Perpage'];
+                        $filter = $_REQUEST['filter'];
+                        $term = $_REQUEST['searchterm'];
+                        $states = [];
+
+                        // $states = States::Search($_REQUEST['searchterm']);
+
+                        $db = DB::GetDB();
+                        $data = array();
+                        $i = 0;
+
+                        $res = $db->query("SELECT * FROM states WHERE country = '$term'");
+                        while(($row = $res->fetch_assoc()) != null)
+                        {
+                            $obj = (object)null;
+                            $obj->Id = $row['statesid'];
+                            $obj->Code = $row['code'];
+                            $obj->Name = ucwords($row['name']);
+                            // $i++;
+                            $data[] = $obj;
+                        }
+                        $db->close();
+                        return $router->printJson(['Status' => 'success', 'Data' => $data, 'total' => count($data)]);
+
+                        $ret->Page = $page;
+                        $ret->Perpage = $perpage;
+                                                
+                        // $ret->Total = count($data);
+                        // $ret->Data = $data;
+ 
+                        // $start = (($ret->Page - 1) * $ret->Perpage);
+                        // $stop = (($start + $ret->Perpage) - 1);
+
+                        // $x = 0;
+                        // for($i = $start; $i < count($states); $i++)
+                        // {
+                        //     $ret->Data[$x] = $states[$i];
+                        //     if($i == $stop){break;}
+                        //     $x++;
+                        // }
+                    }
+                }
+            }
+        break;
 
     }
 

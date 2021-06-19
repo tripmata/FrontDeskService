@@ -250,5 +250,3 @@
         <script type='application/javascript' src='".$cdn."/js/virtual-select.min.js'></script>
 
     </html>";
-
-

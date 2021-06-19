@@ -54,6 +54,9 @@
     $job = isset($_REQUEST['job']) ? urldecode($_REQUEST['job']) : '<nada>';
     $property = isset($_REQUEST['property']) ? $_REQUEST['property'] : (isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : null);
 
+    // set the property id
+    if (!isset($_REQUEST['propertyid'])) $_REQUEST['propertyid'] = $property;
+
     switch($job)
     {
         case "get pos settings":
@@ -1838,6 +1841,23 @@
             // do we have such reservation
             if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);
 
+            // get row
+            $row = $reservation->fetch_assoc();
+            
+            $checkedin = 1;
+            $activated = 1;
+            $noshow = 0;
+            
+            // if($res = $db->query("SELECT reservationid FROM reservation WHERE reservationid='{$_REQUEST['id']}'")->num_rows > 0)
+            // {
+            //     $db->query("UPDATE reservation SET checkedin='$checkedin' WHERE reservationid = '{$_REQUEST['id']}'");
+            //     $ret->Status = "success";
+            //     $ret->Message = "Marked as checked in";
+            // }else{
+            //     $ret->Status = "error";
+            //     $ret->Message = "There was error, please try again.";
+            // }
+
             $movedToLodging = Reservation::moveReservationToLodging($subscriber, $property);
             if($movedToLodging)
             {
@@ -1865,7 +1885,7 @@
                     
                     $ret->Status = "success";
                     $ret->Message = "Successful";
-                    
+                    // $ret->Data->test = Lodging::test($subscriber, $_REQUEST['start'], $_REQUEST['stop']);
                 }
             }
         break;

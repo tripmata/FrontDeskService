@@ -1952,7 +1952,7 @@
                 $lodging->Paidamount = $reservation->Paidamount;
                 $lodging->Paid = true;
             }
-
+            
             $number = $_REQUEST['room'];
             $db = $subscriber->GetDB();
 
@@ -1979,6 +1979,14 @@
                     $pixel->Category = $rCat;
                     $cc = new WixDate(Convert::ToInt($indate));
                     $cch = strtotime($cc->Month."/".$cc->Day."/".$cc->Year);
+                    
+                    // if($cch < strtotime(date("m/d/Y")))
+                    // {
+                    //     if (is_object($rCat)) {                            
+                    //         $price = (round(strtotime(date("m/d/Y")) - $cch) / ((60 * 60) * 24)) * doubleval($rCat->Price);
+                    //         $lodging->Total = doubleval($lodging->Total - $price);
+                    //     }
+                    // }
 
                     $checkin = new WixDate($indate);
                     $checkout = new WixDate(Convert::ToInt($outdate));
@@ -1991,34 +1999,22 @@
 
                     array_push($rooms, $pixel);
                 }
-            }            
+            }
 
             $lodging->Rooms = $rooms;
             $lodging->Checkincount = count($rooms);
-
-            if (strtotime(date("m/d/Y")) > $outdate) {
-                $lodging->Checkedout = true;
-                $todayDate = strtotime(date("m/d/Y H:i:s", time()));
-                $lodging->Checkoutdate = $todayDate;
-
-                for($i = 0; $i < count($lodging->Rooms); $i++)
-                {
-                    if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
-                    {
-                        $lodging->Rooms[$i]->Checkedout = true;
-                        $lodging->Rooms[$i]->Checkout = new WixDate($todayDate);
-                        $lodging->Rooms[$i]->Checkouttime = new WixDate($todayDate);
-                        $lodging->User = $_REQUEST['user_id'];
-                        break;
-                    }
-                }
-            }
-
             $lodging->Save();
 
+
+            // $obj = (object)null;
+            // $obj->lodging = $lodging;
+            // $obj->reservation = $reservation;
+            // $obj->roomCat = $roomCat;
+            // $obj->pixel = $pixel;
+            
+            
+            // return $obj;
             return true;
         }
-
-
     }
     

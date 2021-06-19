@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @package Configuration 
  * @author Amadi Ifeanyi <amadiify.com>
@@ -16,7 +17,7 @@ class Configuration
     /**
      * @var string $host
      */
-    const HOST = 'frontdesk.test';
+    const HOST = 'localhost';
 
     /**
      * @method Configuration database
@@ -33,8 +34,8 @@ class Configuration
             'development' => [
                 'host' => 'localhost',
                 'user' => 'root',
-                'pass' => '',
-                'name' => 'tripmata'
+                'pass' => 'root',
+                'name' => 'esusuttq_tripmata'
             ],
 
             // live connection settings
@@ -64,10 +65,11 @@ class Configuration
             // development url configuration
             'development' => [
                 'host'      => '',
-                'storage'   => 'http://frontdesk.test/Storage/',
-                'messaging' => 'http://services.tripmata.net/Messaging/',
-                'origin'    => 'http://tripmata.net/',
-                'domain'    => 'http://frontdesk.test/FrontDeskServices/'
+                'storage'   => '',
+                'messaging' => 'http://localhost:8888/tripmata-suites/Messaging',
+                'origin'    => 'http://localhost:8888/tripmata/',
+                'domain'    => 'http://localhost:8888/tripmata-suites/FrontDeskServices/',
+                'listing'   => 'http://localhost:8888/tripmata-suites/ListingServices/',
             ],
 
             // live url configuration
@@ -77,6 +79,7 @@ class Configuration
                 'messaging' => 'http://services.tripmata.net/Messaging/',
                 'origin'    => 'http://tripmata.net/', // should be tripmata.com
                 'domain'    => 'http://services.tripmata.net/FrontDeskServices/', // should be frontdeskservice.tripmata.com 
+                'listing'   => 'http://services.tripmata.net/ListingServices/',
             ]
         ];
 

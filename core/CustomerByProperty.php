@@ -847,4 +847,79 @@ class CustomerByProperty
         // get no show for this property
         $this->Activity->NoShow = $db->query("SELECT * FROM reservation WHERE customer = '$customerId' AND property = '$property' AND noshow = 1")->num_rows;
     }
+
+    public static function CustomerByNumber(Subscriber $subscriber, $phone)
+    {
+        $db = DB::GetDB();
+       
+        $res = $db->query("SELECT * FROM customer WHERE phone = '$phone'");
+
+        $customer = null;
+
+        if ($res->num_rows > 0):
+
+            while(($row = $res->fetch_assoc()) != null):
+
+                $ret = new CustomerByProperty($subscriber);
+                $ret->Id = $row['customerid'];
+                $ret->Created = new WixDate($row['created']);
+                $ret->Name = ucfirst($row['name']);
+                $ret->Surname = ucfirst($row['surname']);
+                $ret->Phone = $row['phone'];
+                $ret->Email = $row['email'];
+                $ret->Password = $row['password'];
+                $ret->Country = $row['country'];
+                $ret->State = $row['state'];
+                $ret->City = $row['city'];
+                $ret->Occupation = $row['occupation'];
+                $ret->Kinname = $row['kinname'];
+                $ret->Kinsurname = $row['kinsurname'];
+                $ret->Organization = $row['organization'];
+                $ret->Zip = $row['zip'];
+                $ret->Lastseen = new WixDate($row['lastseen']);
+                $ret->Dateofbirth = new WixDate($row['dateofbirth']);
+                $ret->Monthofbirth = $row['monthofbirth'];
+                $ret->Dayofbirth = $row['dayofbirth'];
+                $ret->Newsletter = Convert::ToBool($row['newsletter']);
+                $ret->Active = Convert::ToBool($row['active']);
+                $ret->Status = Convert::ToBool($row['status']);
+                $ret->Sex = $row['sex'];
+                $ret->Guestid = $row['guestid'];
+                $ret->Salutation = $row['salutation'];
+                $ret->Profilepic = $row['profilepic'];
+                $ret->Idtype = $row['idtype'];
+                $ret->Idnumber = $row['idnumber'];
+                $ret->Idimage = $row['idimage'];
+                $ret->Street = $row['street'];
+                $ret->Kinaddress = $row['kinaddress'];
+                $ret->Destination = $row['destination'];
+                $ret->Origination = $row['origination'];
+                $ret->Guest = $row['guest'];
+                $ret->DOB = $row['dob'];
+                $ret->Address = $row['address'];
+                $ret->InternalEmail = $row['internalEmail'];
+                $ret->isBanned = self::isCustomerBanned($row['customerid']);
+
+                $ret->Bank = $row['bank'];
+                $ret->Accountname = $row['accountname'];
+                $ret->Accountnumber = $row['accountnumber'];
+
+                $ret->Corporate = Convert::ToBool($row['corporate']);
+                $ret->Wallet = doubleval($row['wallet']);
+                $ret->Subscription = $row['subscription'];
+                $ret->Corporaterequest = Convert::ToBool($row['corporate_request']);
+                $ret->Corporateresponse = Convert::ToBool($row['corporate_response']);
+
+                $ret->CustomerActivities();
+
+                // has customer created a password
+                if ($row['password'] != '') $ret->isActivated = true;
+
+                $customer = $ret;
+                
+            endwhile;
+        
+        endif;
+        return $customer;       
+    }
 }

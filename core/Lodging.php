@@ -192,7 +192,7 @@ class Lodging
         $rooms = "[]";
         $checkin = Convert::ToInt($this->Checkin);
         $checkout = Convert::ToInt($this->Checkout);
-        $checkout_date = Convert::ToInt($this->Checkoutdate);
+        $checkout_date = $this->Checkoutdate != 0 ? Convert::ToInt($this->Checkoutdate) : $checkout;
         $days = Convert::ToInt($this->Days);
         $adults = Convert::ToInt($this->Adults);
         $children = Convert::ToInt($this->Children);
@@ -1471,16 +1471,12 @@ class Lodging
         $db = $subscriber->GetDB();
         $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
 
-        // checkout='$dDate' AND
-
-        $param =  isset($start) && isset($stop) ? "lodging.checkin >= '$start' AND lodging.checkout <= $stop" : "";
-
         $queryString = "SELECT CONCAT(user.name,' ' ,user.surname) AS staff,
         lodging.*, CONCAT(customer.name,' ', customer.surname) AS fullname
         FROM user 
         JOIN lodging ON user.userid = lodging.user 
         JOIN customer ON lodging.guest = customer.customerid
-        WHERE lodging.propertyid = '$property'";
+        WHERE lodging.propertyid = '$property' AND lodging.checkin <= '$stop' AND lodging.checkout >= '$start'";
         // WHERE lodging.checkin >= $start AND lodging.checkout <= $stop";
         // JOIN customer ON reservation.customer = customer.customerid";
 
@@ -1522,6 +1518,7 @@ class Lodging
                 $obj->bill = doubleval($item->data['bills']);
                 $obj->checkin_date = new WixDate($item->data['checkin']);
                 $obj->checkout_date = new WixDate($item->data['checkout']);
+                $obj->actual_checkoutdate = new WixDate($item->data['checkout_date']);
                 $obj->created = new WixDate($item->data['created']);
                 $obj->discount = doubleval($item->data['discount']);
                 $obj->paidamount = doubleval($item->data['paidamount']);

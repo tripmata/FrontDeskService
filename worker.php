@@ -1068,8 +1068,9 @@
                                 $reservation->Property = $property;
                                 $reservation->Checkedin = 1;
 
-                                $checkin = new WixDate(intval($_REQUEST['checkoutdate']));
-                                $checkout = new WixDate(intval($_REQUEST['checkindate']));
+                                $checkin_data = explode(":", $_REQUEST['items']);
+                                $checkin = new WixDate(intval($checkin_data[3]));
+                                $checkout = new WixDate(intval($checkin_data[5]));
 
                                 $reservation->Checkoutdate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
                                 $reservation->Checkindate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
@@ -1975,6 +1976,34 @@
                         //     if($i == $stop){break;}
                         //     $x++;
                         // }
+                    }
+                }
+            }
+        break;
+        case 'customer phone exist':
+            if(isset($_REQUEST['usersess']))
+            {
+                $user = new User();
+                $user->Initialize($_REQUEST['usersess']);
+
+                $property = new Property(is_a($user->Property, "Property") ? $user->Property->Id : $user->Property);
+                $subscriber = new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword);
+
+                if ($user->Id != ""){
+                    $user->UpdateSeenTime();
+                }
+
+                if (strtolower($_REQUEST['item_type']) == "frontdesk_item"){
+
+                    $user_exists = CustomerByProperty::CustomerByNumber($subscriber, $_REQUEST['phone']);
+                    if($user_exists === null){
+                        $ret->Data = null;
+                        $ret->Message = 'Number does not exist';
+                        $ret->Status = 'error';
+                    }else{
+                        $ret->Data = $user_exists;
+                        $ret->Message = 'Successful';
+                        $ret->Status = 'success';
                     }
                 }
             }

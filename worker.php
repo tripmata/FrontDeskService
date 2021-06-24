@@ -1574,7 +1574,7 @@
                     $randomRoomNumber = '';
 
                     // @var string $url
-                    $url = $DOMAIN . 'print-property-avaliability/' . $cat->Id . '/' . $cat->Property->Id . '/' . intval($data['checkin']) . '/' . intval($data['checkout']);
+                    $url = $DOMAIN . 'print-property-avaliability/' . $cat->Id . '/' . $cat->Property->Id . '/' . strtotime($data['checkin']) . '/' . strtotime($data['checkout']);
 
                     // Check for avaliability
                     $ch = curl_init($url);
@@ -1597,7 +1597,7 @@
                         foreach ($response->rooms as $number => $bool) :
 
                             if ($bool) :
-                                
+
                                 // get the first
                                 $std->Number = $number;
 

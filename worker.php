@@ -1596,11 +1596,15 @@
                         // loop through
                         foreach ($response->rooms as $number => $bool) :
 
-                            // get the first
-                            $std->Number = $number;
+                            if ($bool) :
+                                
+                                // get the first
+                                $std->Number = $number;
 
-                            // break
-                            break;
+                                // break
+                                break;
+
+                            endif;
 
                         endforeach;
 

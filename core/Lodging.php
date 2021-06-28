@@ -1024,6 +1024,9 @@ class Lodging
         // get the first day of this month
         $dayStart = strtotime(date('m') . '/1/' . date('Y'));
 
+        // start from last 2 months
+        $dayStart = strtotime(date('m/d/Y', $dayStart) . ' - 2 months');
+
         // get next month
         $nextMonth = intval(date('m', strtotime('+1 month')));
 
@@ -1034,8 +1037,8 @@ class Lodging
         $dayEnd = strtotime( $nextMonth . '/' . date('t', strtotime('+1 month')) . '/' . $nextMonthYear);
 
         // can we fetch for this month only
-        // $queryString .= ($fetchForThisMonth) ? "AND (checkin >= '$dayStart' AND checkin <= '$dayEnd') AND checkedout = 0" : '';
-        $queryString .= ($fetchForThisMonth) ? "" : '';
+        $queryString .= ($fetchForThisMonth) ? "AND (checkin >= '$dayStart' AND checkin <= '$dayEnd')" : '';
+        //$queryString .= ($fetchForThisMonth) ? "" : '';
         
         //$res = $db->query("SELECT * FROM lodging WHERE checkin >= '$start' AND checkout <= '$stop'");
 

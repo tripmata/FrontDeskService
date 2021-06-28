@@ -749,11 +749,12 @@
                             $reservation->Customer = $customer;
                             $reservation->Property = $property;
 
-                            $checkin = new WixDate(intval($_REQUEST['checkoutdate']));
-                            $checkout = new WixDate(intval($_REQUEST['checkindate']));
+                            $checkin = new WixDate(intval($_REQUEST['checkindate']));
+                            $checkout = new WixDate(intval($_REQUEST['checkoutdate']));
 
-                            $reservation->Checkoutdate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
-                            $reservation->Checkindate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
+                            $reservation->Checkoutdate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
+                            $reservation->Checkindate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
+
                             $reservation->Rooms = $roomList;
                             $reservation->Save();
 
@@ -1068,12 +1069,11 @@
                                 $reservation->Property = $property;
                                 $reservation->Checkedin = 1;
 
-                                $checkin_data = explode(":", $_REQUEST['items']);
-                                $checkin = new WixDate(intval($checkin_data[3]));
-                                $checkout = new WixDate(intval($checkin_data[5]));
+                                $checkin = new WixDate(intval($_REQUEST['checkindate']));
+                                $checkout = new WixDate(intval($_REQUEST['checkoutdate']));
 
-                                $reservation->Checkoutdate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
-                                $reservation->Checkindate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
+                                $reservation->Checkoutdate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
+                                $reservation->Checkindate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
                                 $reservation->Rooms = $roomList;
 
                                 $newReservation = true;
@@ -1174,6 +1174,8 @@
                                     array_push($rooms, $pixel);
                                 }
                             }
+
+                            //var_dump($lodging, $reservation); die;
 
                             $lodging->Rooms = $rooms;
                             $lodging->Checkincount = count($rooms);

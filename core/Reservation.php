@@ -42,6 +42,7 @@
         public $GuestEmail = '';
         public $Old_entry = "";
 		public $Updated_by = "";
+        public $IsLongOverDue = false;
 
 
 		public $Cancelled = false;
@@ -100,6 +101,7 @@
                     $this->PlatformName = $row['platformName'];
                     $this->ArrivalTime = $row['checkin_time'];
                     $this->getGuestInfo($row);
+                    $this->IsLongOverDue = self::reservationIsLongOverdue($row);
 
 					if ((($this->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($this->Activated === false))
                     {
@@ -297,6 +299,7 @@
                         $ret[$i]->PlatformName = $row['platformName'];
                         $ret[$i]->ArrivalTime = $row['checkin_time'];
                         $ret[$i]->getGuestInfo($row);
+                        $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
     
                         if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                         {
@@ -401,6 +404,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -470,6 +474,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -540,6 +545,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -611,6 +617,7 @@
                 $ret->PlatformName = $row['platformName'];
                 $ret->ArrivalTime = $row['checkin_time'];
                 $ret->getGuestInfo($row);
+                $ret->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret->Activated === false))
                 {
@@ -682,6 +689,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -755,6 +763,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -829,6 +838,7 @@
                 $ret[$i]->IsOnline = intval($row['isonline']);
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
@@ -900,6 +910,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -975,6 +986,7 @@
                     $ret[$i]->PlatformName = $row['platformName'];
                     $ret[$i]->ArrivalTime = $row['checkin_time'];
                     $ret[$i]->getGuestInfo($row);
+                    $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                     if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                     {
@@ -1104,6 +1116,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -1173,6 +1186,7 @@
                 $ret[$i]->IsOnline = intval($row['isonline']);
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                 {
@@ -1242,6 +1256,7 @@
                 $ret->IsOnline = intval($row['isonline']);
                 $ret->PlatformName = $row['platformName'];
                 $ret->ArrivalTime = $row['checkin_time'];
+                $ret->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                 if((($ret->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret->Activated === false))
                 {
@@ -1354,6 +1369,7 @@
                 $ret[$i]->PlatformName = $row['platformName'];
                 $ret[$i]->ArrivalTime = $row['checkin_time'];
                 $ret[$i]->getGuestInfo($row);
+                $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
                 
 
                 if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
@@ -1700,6 +1716,7 @@
                     $ret[$i]->PlatformName = $row['platformName'];
                     $ret[$i]->ArrivalTime = $row['checkin_time'];
                     $ret[$i]->getGuestInfo($row);
+                    $ret[$i]->IsLongOverDue = self::reservationIsLongOverdue($row);
 
                     if((($ret[$i]->Checkindate->getValue() + (24 * (60 * 60))) > time()) && ($ret[$i]->Activated === false))
                     {
@@ -2015,6 +2032,43 @@
             
             // return $obj;
             return true;
+        }
+
+        // check if a reservation is overdue
+        public static function reservationIsLongOverdue(array $row) : bool
+        {
+            // set current time
+            static $currentTime;
+
+            // @var bool $overDue
+            $overDue = false;
+
+            // get current time
+            if ($currentTime === null) $currentTime = strtotime(date('m/d/Y'));
+
+            // check in late?
+            if ($currentTime > intval($row['checkindate'])) :
+
+                // not checked in yet??
+                if (intval($row['checkedin']) == 0) :
+
+                    $overDue = true;
+
+                else:
+
+                    // check out passed ???
+                    if ($currentTime > intval($row['checkoutdate'])) :
+
+                        if (intval($row['noshow']) == 0) : $overDue = true; endif;
+
+                    endif;
+
+                endif;
+
+            endif;
+
+            // return bool
+            return $overDue;
         }
     }
     

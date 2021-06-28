@@ -1558,44 +1558,64 @@ class Lodging
         return $data;
     }
 
-    public static function test(Subscriber $subscriber, $start=null, $stop=null)
+    public static function Checkout(Subscriber $subscriber)
     {
-        $db = $subscriber->GetDB();
-        $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
+        $lodging = new Lodging($subscriber);
+        $lodging->Initialize($_REQUEST['booking']);
+        $lodging->Checkedout = true;
+        $todayDate = strtotime(date("m/d/Y H:i:s", time()));
 
-        $extra = isset($start) && isset($stop) ? "lodging.checkin >= '$start' AND lodging.checkin <= $stop AND" : '';
+        $lodging->Checkoutdate = new WixDate($todayDate);
 
-        // $queryString = "SELECT * FROM lodging WHERE $extra propertyid = '$property'";
-
-        $queryString = "SELECT CONCAT(user.name,' ' ,user.surname) AS staff,
-        lodging.checkin, lodging.checkout, 
-        lodging.total, lodging.paidamount, 
-        lodging.discount, lodging.paidamount, lodging.guest,
-        lodging.bills, lodging.created, lodging.rooms,
-        CONCAT(customer.name,' ', customer.surname) AS fullname
-        FROM user JOIN lodging 
-        ON user.userid = lodging.user 
-        JOIN customer ON lodging.guest = customer.customerid
-        WHERE lodging.propertyid = '$property'";
-
-        $res = $db->query($queryString);
-
-        $data = array();
-        while(($row = $res->fetch_assoc()) != null)
+        for($i = 0; $i < count($lodging->Rooms); $i++)
         {
-            $lodging = (object)null;
-            $lodging->Data = $row;
-            $lodging->Rooms = json_decode($row['rooms']);
-            $lodging->Checkin = new WixDate($row['checkin']);
-            $lodging->Checkout = new WixDate($row['checkout']);
-            $lodging->Guest = new CustomerByProperty($subscriber);
-            $lodging->Guest->Initialize($row['guest']);
+            if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
+            {
+                $lodging->Rooms[$i]->Checkedout = true;
+                $lodging->Rooms[$i]->Checkout = new WixDate($todayDate);
+                $lodging->Rooms[$i]->Checkouttime = new WixDate($todayDate);
+                $lodging->User = $_REQUEST['posuser'];
+                $lodging->Save();
 
-            $data[] = $lodging;
+                break;
+            }
+        }
+    } 
+
+    public static function SendRefundRequest($reservationid)
+    {
+        $reservation = new Reservation($reservationid);
+                            
+        // log for approval
+        if (isset($_REQUEST['payment_method']) && isset($_REQUEST['message']))
+        {
+            $payment_method = $_REQUEST['payment_method'];
+            $bankname = isset($_REQUEST['bankname']) ? $_REQUEST['bankname'] : '';
+            $acc_name = isset($_REQUEST['acc_name']) ? $_REQUEST['acc_name'] : '';
+            $acc_number = isset($_REQUEST['acc_number']) ? $_REQUEST['acc_number'] : '';
+
+            if(!empty($_REQUEST['others_option']))
+            {
+                $payment_method = $_REQUEST['others_option'];
+            }
+
+            $reservation->RefundPaymentCondition = json_encode([
+                'method'   => $payment_method,
+                'message'  => $_REQUEST['message'],
+                'loggedBy' => $_REQUEST['posuser'],
+                'bank'     => $bankname,
+                'acc_name'     => $acc_name,
+                'acc_number'     => $acc_number,
+            ]);
         }
 
-        return $data;
+        $reservation->Save();
 
+        if ($reservation->IsOnline == 1)
+        {
+            // send confirmation email
+            $reservation->sendConfirmationMail();
+        }
     }
 
 

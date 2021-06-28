@@ -49,6 +49,7 @@
 		public $Rules = [];
 		public $Tandc = "";
 		public $Childpolicy = "";
+		public $LateCheckoutRules = [];
 
 		public $Databasename = "";
 		public $DatabasePassword = "";
@@ -120,6 +121,7 @@
 					$this->DatabaseUser = $row['databaseuser'];
 					$this->Meta = $row['meta'];
 					$this->Star = $row['star'];
+					$this->LateCheckoutRules = self::FormatLateCheckoutRules($row['late_checkout_rules']);					
 				}
 			}
 		}
@@ -553,5 +555,51 @@
 			{
 				$this->Price = $rooms[0]->Price;
 			}
+		}
+
+		public static function FormatLateCheckoutRules($rules){
+			$late_checkout_rules = json_decode($rules);
+
+			// get hour
+			$hour = intval(date('H'));
+
+			// get minute
+			$min = intval(date('i'));
+			
+			$rules = [];
+			// run
+			foreach ($late_checkout_rules as $rule)
+			{
+				// get from 
+				list($fromHour, $fromMin) = explode(':', $rule->from);
+
+				// get to
+				list($toHour, $toMin) = explode(':', $rule->to);
+
+				// make int
+				$fromHour = intval($fromHour);
+				$toHour = intval($toHour);
+
+				// make int 
+				$fromMin = intval($fromMin);
+				$toMin = intval($toMin);
+				
+				// adjust from hour
+				$fromHour = $fromHour < 12 ? ($fromHour + 12) : $fromHour;
+
+				// adjust to hour
+				$toHour = $toHour < 12 ? ($toHour + 12) : $toHour;
+				
+				$obj = (object)null;
+				$obj->fromMin = $fromMin;
+				$obj->toMin = $toMin;
+				$obj->fromHour = $fromHour;
+				$obj->toHour = $toHour;
+				$obj->amount = intval($rule->amount);
+
+				$rules[] = $obj;
+			}
+
+			return $rules;
 		}
 	}

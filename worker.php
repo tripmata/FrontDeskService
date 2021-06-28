@@ -639,8 +639,8 @@
                             $lodging->Initialize($_REQUEST['booking']);
                             $lodging->Checkedout = true;
                             $todayDate = strtotime(date("m/d/Y H:i:s", time()));
-                            $lodging->Checkoutdate = $todayDate;
-                            $lodging->Checkout = $todayDate;
+                            $lodging->Checkoutdate = new WixDate($todayDate);
+                            // $lodging->Checkout = $todayDate;
                             for($i = 0; $i < count($lodging->Rooms); $i++)
                             {
                                 if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
@@ -885,11 +885,20 @@
 
                             endif;
 
+                            $fromEarlyCheckout = isset($_REQUEST['checkout']) ? true : false;
+                            
+                            $lodging->Save();
+                            
                             $ret->Status = "success";
                             $ret->Message = "transaction saved";
                             $ret->Data = null;
-
-                            $lodging->Save();
+                            
+                            if($fromEarlyCheckout){
+                                Lodging::Checkout($subscriber);
+                                $ret->Data = new stdClass();
+                                $ret->Data->type = 'checkout';
+                                $ret->Data->content = Lodging::byPeriod(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));
+                            }
                         }
 
                         if ($_REQUEST['operation'] === "checkin")
@@ -1216,11 +1225,28 @@
                             // log for approval
                             if (isset($_REQUEST['payment_method']) && isset($_REQUEST['message']))
                             {
+                                $payment_method = $_REQUEST['payment_method'];
+                                $bankname = isset($_REQUEST['bankname']) ? $_REQUEST['bankname'] : '';
+                                $acc_name = isset($_REQUEST['acc_name']) ? $_REQUEST['acc_name'] : '';
+                                $acc_number = isset($_REQUEST['acc_number']) ? $_REQUEST['acc_number'] : '';
+
+                                if($_REQUEST['payment_method'] === 'others'){
+                                    $payment_method = $_REQUEST['others_option'];
+                                }
+
+                                if($_REQUEST['payment_method'] === 'transfer'){
+                                    $payment_method = $_REQUEST['payment_method'];
+                                }
+
                                 $reservation->RefundPaymentCondition = json_encode([
-                                    'method'   => $_REQUEST['payment_method'],
+                                    'method'   => $payment_method,
                                     'message'  => $_REQUEST['message'],
-                                    'loggedBy' => $_REQUEST['posuser']
+                                    'loggedBy' => $_REQUEST['posuser'],
+                                    'bank'     => $bankname,
+                                    'acc_name'     => $acc_name,
+                                    'acc_number'     => $acc_number,
                                 ]);
+
                             }
 
                             $reservation->Save();
@@ -1246,6 +1272,30 @@
                             $ret->Status = "success";
                             $ret->Message = "Reservation canceled successfully";
                             $ret->Data = null;
+                        }
+
+                        if($_REQUEST['operation'] === "early checkout"){
+                            $booking_number = $_REQUEST['booking_no'];
+                            $db = DB::GetDB();
+                            $res = $db->query("SELECT * FROM reservation WHERE booking='$booking_number'");
+
+                            $reservationid = null;
+                            if($res->num_rows > 0){
+                                $row = $res->fetch_assoc();
+                                $reservationid = $row['reservationid']; 
+
+                                Lodging::SendRefundRequest($reservationid); // Send refund request
+                                Lodging::Checkout($subscriber); // Early checkout
+                                
+                                $ret->Data = new stdClass();
+                                $ret->Data->type = 'checkout';
+                                $ret->Data->content = Lodging::byPeriod(new Subscriber($property->Databasename, $property->DatabaseUser, $property->DatabasePassword));                        
+                                $ret->Status = "success";
+                                $ret->Message = "Early checkout completed. Pending approval from Admin.";                            
+                            }
+
+                            
+                            
                         }
                     }
                 }

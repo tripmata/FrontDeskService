@@ -1446,6 +1446,79 @@
             return $canAdd;
         }
 
+        // generate sql statement
+        // inject data through class 
+        public function generateSQLStatement() : string
+        {
+            // @var string $statement
+            $statement = 'SELECT * FROM reservation rs WHERE property = ' . "'{$this->propertyId}'";
+
+            // manage payment
+            switch ($this->payment) :
+
+                // paid
+                case 'paid':
+                    $statement .= ' AND paid = 1';
+                break;
+
+                // unpaid
+                case 'unpaid':
+                    $statement .= ' AND paid = 0';
+                break;
+
+                // partial paid
+                case 'partial-paid':
+                    $statement .= ' AND paidamount < rs.total';
+                break;
+
+            endswitch;
+
+            // manage filter
+            switch ($this->filter) :
+
+                // checked out
+                case 'checkedout' :
+                    $statement .= ' AND checkedout = 1';
+                break;
+
+                // abandoned
+                case 'abandoned':
+                    $statement .= ' AND (noshow=1 OR noshow=2)';
+                break;
+
+                // checkedin
+                case 'checkedin':
+                    $statement .= ' AND checkedin=1';
+                break;
+
+                // cancelled
+                case 'cancelled':
+                    $statement .= ' AND cancelled=1';
+                break;
+
+                // overdue
+                case 'overdue':
+                    $statement .= ' AND checkindate < ' . "'{$this->time}' AND checkedin = 0";
+                break;
+
+                // future checkin
+                case 'future-checkin':
+                    $statement .= ' AND checkindate > ' . "'{$this->time}' AND checkedin = 0";
+                break;
+
+            endswitch;
+
+            // manage source
+            if ($this->source != '' && $this->source != 'all') $statement .= ' AND platformName = ' . "'{$this->source}'";
+
+            // add date
+            if (strpos($statement, 'checkindate') === false) $statement .= ' AND checkindate >= ' . "'{$this->date}'";
+
+            // return string
+            return $statement;
+        }
+
+        // apply filter
         public static function applyFilter($property, $filter, $duedate, $source, $payment)
         {
             $db = DB::GetDB();
@@ -1458,210 +1531,27 @@
             $id = is_a($property, "Property") ? $property->Id : $property;
             $date = strtotime(date('d/M/Y'));
 
-            $time = mktime(12,0,1,date('n'),date('j'),date('Y'));
-            
-            if($filter === 'all' && $payment === "paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND paid=1 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND paid=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND paid=1 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === 'all' && $payment === ""){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === 'all' && $payment === "unpaid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0  AND paid=0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0  AND paid=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0  AND paid=0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === 'all' && $payment === "partial-paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "abandoned" && $payment === ""){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "abandoned" && $payment === "paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND paid=1 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND paid=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND paid=1 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "abandoned" && $payment === "unpaid"){
-                // $sourceVal = $source === '' ? null : ($source == 'walkin' ? $source : '');
-                // if($sourceVal === null){
-                //     $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0  AND paid=0 ORDER BY id DESC");            
-                // }else{
-                //     $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0  AND paid=0 AND platformName='$sourceVal' ORDER BY id DESC");            
-                // }
+            // create object
+            $generator = new class() extends Reservation{
+                public $propertyId  = '';
+                public $filter      = '';
+                public $source      = '';
+                public $payment     = '';
+                public $date        = '';
+                public $time        = '';
+            };
 
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND paid=0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND paid=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND (noshow=1 OR noshow=2) AND paid=0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "abandoned" && $payment === "partial-paid"){               
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=0 AND paidamount < total AND discount = 0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "checkedin" && $payment === ""){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "checkedin" && $payment === "paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paid=1 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paid=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paid=1 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "checkedin" && $payment === "unpaid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paid=0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paid=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paid=0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "checkedin" && $payment === "partial-paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paidamount < total AND discount = 0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkedin=1 AND paidamount < total AND discount = 0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "cancelled" && $payment === ""){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "cancelled" && $payment === "paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paid=1 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paid=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paid=1 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "cancelled" && $payment === "unpaid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paid=0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paid=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paid=0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "cancelled" && $payment === "partial-paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paidamount < total AND discount = 0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND cancelled=1 AND paidamount < total AND discount = 0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "overdue" && $payment === ""){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND platformName='$source' ORDER BY id DESC");
-                }
-            }else if($filter === "overdue" && $payment === "paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND (platformName='' OR platformName=null OR platformName='walkin') AND paid=1 ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND paid=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND platformName='$source' AND paid=1 ORDER BY id DESC");
-                }
-            }else if($filter === "overdue" && $payment === "unpaid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND (platformName='' OR platformName=null OR platformName='walkin') AND paid=0 ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND paid=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND platformName='$source' AND paid=0 ORDER BY id DESC");
-                }
-            }else if($filter === "overdue" && $payment === "partial-paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND (platformName='' OR platformName=null OR platformName='walkin') AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate < '$time' AND checkedin=0 AND platformName='$source' AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }
-            }else if($filter === "future-checkin" && $payment === ""){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND (platformName='' OR platformName=null OR platformName='walkin') ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND platformName='$source' ORDER BY id DESC");
-                }                
-            }else if($filter === "future-checkin" && $payment === "paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND (platformName='' OR platformName=null OR platformName='walkin') AND paid=1 ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND paid=1 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND platformName='$source' AND paid=1 ORDER BY id DESC");
-                }                
-            }else if($filter === "future-checkin" && $payment === "unpaid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND (platformName='' OR platformName=null OR platformName='walkin') AND paid=0 ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND paid=0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND platformName='$source' AND paid=0 ORDER BY id DESC");
-                }                
-            }else if($filter === "future-checkin" && $payment === "partial-paid"){
-                if($source === 'walkin'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND (platformName='' OR platformName=null OR platformName='walkin') AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else if($source === 'all'){
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }else{
-                    $res = $db->query("SELECT * FROM reservation WHERE property='$id' AND checkindate > '$time' AND platformName='$source' AND paidamount < total AND discount = 0 ORDER BY id DESC");
-                }                
-            }
-            
+            // push data
+            $generator->propertyId     = $id;
+            $generator->filter         = $filter;
+            $generator->payment        = $payment;
+            $generator->source         = $source;
+            $generator->date           = $dDate;
+            $generator->time           = mktime(12,0,1,date('n'),date('j'),date('Y'));
 
+            // run query
+            $res = $db->query($generator->generateSQLStatement());
+            
             // get date
             $dateTime = new DateTime($duedate);
 
@@ -1680,7 +1570,7 @@
                     $ret[$i]->UnconfirmedNoShow = $row['noshow'] == 2 ? 1 : 0;
 
                     $bookingid = $row['booking'];
-                    $test = $db->query("SELECT checkout, checkin FROM lodging WHERE booking='$bookingid'");
+                    $test = $db->query("SELECT checkout,checkin FROM lodging WHERE booking='$bookingid'");
                     $test2 = $test->fetch_assoc();
                     $ret[$i]->test = $test2;
 

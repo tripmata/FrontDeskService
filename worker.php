@@ -913,6 +913,12 @@
                             $rooms = [];
                             $newReservation = false;
 
+                            // offload discount, total, taxes
+                            $discount = doubleval($_REQUEST['discount']);
+                            $total = doubleval($_REQUEST['total']);
+                            $taxes = doubleval($_REQUEST['taxes']);
+
+                            // reservation has been made previously??
                             if (Convert::ToBool($_REQUEST['fromReserve']))
                             {
                                 $reservation = new Reservation($_REQUEST['booking']);
@@ -920,6 +926,10 @@
                                 $reservation->Activated = true;
                                 $reservation->Noshow = false;
                                 $reservation->ArrivalTime = date('g:i a');
+
+                                // update total
+                                $total = $reservation->Total;
+                                $discount = $reservation->Discount;
 
                                 // add the platform
                                 $reservation->PlatformName = isset($_REQUEST['platform']) ? $_REQUEST['platform'] : $reservation->PlatformName;
@@ -999,6 +1009,8 @@
                                 }
                                 
                             }
+
+                            // direct check-in
                             else
                             {
                                 if ($guest->phone != '' && CustomerByProperty::PhoneExist($guest->phone))
@@ -1130,9 +1142,9 @@
 
                             }
                             
-                            $lodging->Discount = doubleval($_REQUEST['discount']);
-                            $lodging->Taxes = doubleval($_REQUEST['taxes']);
-                            $lodging->Total = doubleval($_REQUEST['total']);
+                            $lodging->Discount = $discount;
+                            $lodging->Taxes = $taxes;
+                            $lodging->Total = $total;
 
                             // add the platform
                             $lodging->PlatformName = isset($_REQUEST['platform']) ? $_REQUEST['platform'] : $lodging->PlatformName;

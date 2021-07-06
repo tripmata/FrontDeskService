@@ -641,9 +641,9 @@
                             $todayDate = strtotime(date("m/d/Y H:i:s", time()));
                             $lodging->Checkoutdate = new WixDate($todayDate);
                             // $lodging->Checkout = $todayDate;
-                            for($i = 0; $i < count($lodging->Rooms); $i++)
+                            for ($i = 0; $i < count($lodging->Rooms); $i++)
                             {
-                                if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
+                                if (($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
                                 {
                                     $lodging->Rooms[$i]->Checkedout = true;
                                     $lodging->Rooms[$i]->Checkout = new WixDate($todayDate);
@@ -653,6 +653,12 @@
                                     break;
                                 }
                             }
+
+                            // get db instance
+                            $db = DB::GetDB();
+
+                            // update checked in manually
+                            $db->query("UPDATE reservation SET checkedout = 1 WHERE booking = '{$lodging->Bookingnumber}'");
 
                             $ret->Data = null;
                             $ret->Status = "success";
@@ -1163,9 +1169,9 @@
 
                                     $rCat = null;
 
-                                    for($j = 0; $j < count($roomCat); $j++)
+                                    for ($j = 0; $j < count($roomCat); $j++)
                                     {
-                                        if($roomCat[$j]->Number == $r[2])
+                                        if ($roomCat[$j]->Number == $r[2])
                                         {
                                             $pixel->Id = $roomCat[$j]->Id;
                                             $rCat = $roomCat[$j]->Category;
@@ -1219,6 +1225,12 @@
                                 // apply coupon
                                 Coupon::applyCoupon($lodging->Bookingnumber);
                             }
+
+                            // get db instance
+                            $db = DB::GetDB();
+
+                            // update checked in manually
+                            $db->query("UPDATE reservation SET checkedin = 1 WHERE booking = '{$lodging->Bookingnumber}'");
 
                             //Retrieve data for processing
                             $ret->Data = new stdClass();
@@ -1309,6 +1321,15 @@
                             
                             
                         }
+
+                        if ($_REQUEST['operation'] === "get reservation"){
+                            $booking_number = $_REQUEST['booking'];
+                            
+                            $ret->Data = Reservation::ByBookingNUmber($booking_number);
+                            $ret->Status = "success";
+                            $ret->Message = "Success";
+                        }
+
                     }
                 }
             }

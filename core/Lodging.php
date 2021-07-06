@@ -184,7 +184,27 @@ class Lodging
     {
         $db = $this->subscriber->GetDB();
         $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
+        $checkOutDate = Convert::ToInt($this->Checkout);
 
+        // check data type
+        if (is_string($this->Checkoutdate)) :
+
+            // convert to int
+            $checkOutDate = Convert::ToInt($this->Checkoutdate);
+
+        else:
+
+            // check if it's an instance of wixdate
+            if (is_object($this->Checkoutdate) && is_a($this->Checkoutdate, 'WixDate')) :
+
+                // get the time stamp
+                $checkOutDate = $this->Checkoutdate->getValue();
+
+            endif;
+
+        endif;
+
+        // create data.
         $id = $this->Id;
         $created = time();
         $guest = addslashes((is_a($this->Guest, "Customer") || is_a($this->Guest, "CustomerByProperty")) ? $this->Guest->Id : $this->Guest);
@@ -192,7 +212,7 @@ class Lodging
         $rooms = "[]";
         $checkin = Convert::ToInt($this->Checkin);
         $checkout = Convert::ToInt($this->Checkout);
-        $checkout_date = $this->Checkoutdate != 0 ? Convert::ToInt($this->Checkoutdate) : $checkout;
+        $checkout_date = $checkOutDate;
         $days = Convert::ToInt($this->Days);
         $adults = Convert::ToInt($this->Adults);
         $children = Convert::ToInt($this->Children);
@@ -789,8 +809,8 @@ class Lodging
         $lodging->Initialize($lodgingID);
 
         // get today
-        $today = new DateTime();
-
+        // $today = new DateTime();
+        $today=date_create();
         // get db
         $db = DB::GetDB();
 
@@ -805,8 +825,8 @@ class Lodging
 
         // ok
         // get days diffrence
-        $checkOut = new DateTime($lodging->Checkout->Month . '/' . $lodging->Checkout->Day . '/' . $lodging->Checkout->Year);
-
+        // $checkOut = new DateTime($lodging->Checkout->Month . '/' . $lodging->Checkout->Day . '/' . $lodging->Checkout->Year);
+        $checkOut=date_create($lodging->Checkout->Year . '/' . $lodging->Checkout->Month . '/' . $lodging->Checkout->Day);
         // calculate diff
         $diff = $today->diff($checkOut);
 
@@ -815,6 +835,17 @@ class Lodging
 
         // get hours
         $hours = $diff->h;
+
+        $roomRate = 0;
+
+        $checkIn=date_create($lodging->Checkin->Year . '/' . $lodging->Checkin->Month . '/' . $lodging->Checkin->Day);
+
+        $nights_spent = $checkIn->diff($checkOut);
+        $total = $lodging->BaseTotal == 0 ? $lodging->Total : $lodging->BaseTotal;
+        
+        $roomRate = ($total - $lodging->Discount) / $nights_spent->d;
+
+        // return ['newRate' => round($roomRate, 2)];
 
         // calculate for days
         if ($days > 0)
@@ -891,7 +922,8 @@ class Lodging
                         // can we bill
                         if ($canBill)
                         {
-                            $bill += floatval($rule->amount);
+                            $billAmount = ($roomRate * $rule->amount/100);
+                            $bill += floatval($billAmount);
                         }
                     }
                 }
@@ -908,7 +940,7 @@ class Lodging
         }
 
         // update total
-        $lodging->Total = 0;
+        // $lodging->Total = 0;
 
         // has bill?
         if ($bill > 0) :
@@ -929,7 +961,7 @@ class Lodging
         endif;
 
         // return bill
-        return $lodging->Total;
+        return $lodging->Total + $lodging->Bills;
     }
 
     public static function toDaysCheckin(Subscriber $subscriber)

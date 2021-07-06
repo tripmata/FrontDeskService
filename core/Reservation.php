@@ -1323,7 +1323,7 @@
             $dayEnd = strtotime( $nextMonth . '/' . date('t', strtotime('+1 month')) . '/' . $nextMonthYear);
 
             // can we fetch for this month only
-            $queryString .= ($fetchForThisMonth) ? "AND (checkindate >= '$dayStart' AND checkindate <= '$dayEnd') AND checkedout = 0 AND (noshow = 0 OR noshow = 2)" : '';
+            $queryString .= ($fetchForThisMonth) ? "AND (checkindate >= '$dayStart' AND checkindate <= '$dayEnd') AND checkedout = 0 AND noshow = 0" : '';
             
             // make query request
             $res = $db->query($queryString);

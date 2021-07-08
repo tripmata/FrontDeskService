@@ -1637,7 +1637,7 @@
 
                     $cat = new Roomcategory($subscriber);
                     $cat->Initialize($data['id']);
-                    $roomNumber = '001';
+                    // $roomNumber = '001';
 
                     // get a room number
                     // $rooms = $db->query("SELECT RAND(*) FROM room WHERE category = '{$data['id']}' LIMIT 0, 1");
@@ -1651,10 +1651,11 @@
                     // endif;
 
                     $std = new stdClass();
-                    $std->Number = '';
+                    $std->Number = $data['room'];
                     $std->Room = $cat;
                     $std->RoomId = $data['id'];
 
+                    /*
                     // @var string $randomRoomNumber
                     $randomRoomNumber = '';
 
@@ -1695,6 +1696,7 @@
 
                     endif;
                     // die;
+                    */
                     
                     // set now
                     $roomList[] = $std;
@@ -1739,7 +1741,7 @@
                     //retrieve and reprocess reservation
                     $ret->Data = new stdClass();
                     $ret->Data->type = "reservation";
-                    $ret->Data->content = Reservation::ByPeriod($property);
+                    //$ret->Data->content = Reservation::ByPeriod($property);
                     $ret->Data->reservationId = $reservation->Id;
 
                     $ret->Status = "success";

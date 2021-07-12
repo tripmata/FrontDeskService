@@ -17,7 +17,8 @@
         public $UserId = [];
         public $CommissionEarned = 0;
         public $ReservationId = '';
-
+		public $Bookingnumber = "";
+        
         private $subscriber = null;
 
         function __construct(Subscriber $subscriber)
@@ -50,6 +51,7 @@
             $this->UserId = new User($row['userid']);
             $this->CommissionEarned = doubleval($row['commission_earned']);
             $this->ReservationId = $row['reservationid'];
+            $this->Bookingnumber = $row['booking_no'];
         }
 
         public function Save()
@@ -67,10 +69,11 @@
             $userid = addslashes(is_a($this->UserId, "UserId") ? $this->UserId->Id : $this->UserId);
             $commissionEarned = doubleval($this->CommissionEarned);
             $reservationid = addslashes($this->ReservationId);
+            $booking_no = addslashes($this->Bookingnumber);
 
 			if($res = $db->query("SELECT revenueid FROM revenue WHERE revenueid='$id'")->num_rows > 0)
 			{
-				$db->query("UPDATE revenue SET amount='$amount',propertyid='$property',payment_mode='$paymentMode',customerid='$customerid',payment_code='$paymentCode',remark='$remark',userid='$userid',commission_earned = '$commissionEarned',reservationid = '$reservationid' WHERE id = '$id'");
+				$db->query("UPDATE revenue SET amount='$amount',propertyid='$property',payment_mode='$paymentMode',customerid='$customerid',payment_code='$paymentCode',remark='$remark',userid='$userid',commission_earned = '$commissionEarned',reservationid = '$reservationid',booking_no = '$booking_no' WHERE id = '$id'");
 			}
 			else
 			{
@@ -81,7 +84,7 @@
 					goto redo;
 				}
 				$this->Id = $id;
-				$db->query("INSERT INTO revenue (revenueid,created,amount,propertyid,payment_mode,customerid,payment_code,remark,userid,commission_earned,reservationid) VALUES ('$id','$created','$amount','$property','$paymentMode','$customerid','$paymentCode','$remark','$userid','$commissionEarned','$reservationid')");
+				$db->query("INSERT INTO revenue (revenueid,created,amount,propertyid,payment_mode,customerid,payment_code,remark,userid,commission_earned,reservationid,booking_no) VALUES ('$id','$created','$amount','$property','$paymentMode','$customerid','$paymentCode','$remark','$userid','$commissionEarned','$reservationid','$booking_no')");
 			}
         }
 
@@ -98,6 +101,7 @@
             $payment->Remark = isset($data['remark']) ? $data['remark'] : $payment->Remark;
             $payment->UserId = isset($data['userid']) ? $data['userid'] : $payment->UserId;
             $payment->ReservationId = isset($data['resid']) ? $data['resid'] : $payment->ReservationId;
+            $payment->Bookingnumber = isset($data['booking_no']) ? $data['booking_no'] : $payment->Bookingnumber;
 
             // get commission
             $totalCommission = 0;

@@ -1570,24 +1570,91 @@ class Lodging
         $db = $subscriber->GetDB();
         $property = isset($_REQUEST['propertyid']) ? $_REQUEST['propertyid'] : $_REQUEST['property'];
 
-        $param =  isset($start) && isset($stop) ? "lodging.checkin >= '$start' AND lodging.checkout <= $stop" : "";
-
+        // $param =  isset($start) && isset($stop) ? "AND checkin >= '$start' AND checkin <= '$stop'" : "";        
+        
         $queryString = "SELECT * FROM lodging WHERE propertyid = '$property'";
+        $queryString .= isset($start) && isset($stop) ? "AND checkin >= '$start' AND checkin <= '$stop'" : "";
+
         $res = $db->query($queryString);
         $data = array();
+        $booking = null;
         while(($row = $res->fetch_assoc()) != null)
         {
             $lodging = (object)null;
             $lodging->data = $row;
             $lodging->rooms = json_decode($row['rooms']);
-
-            $lodging->Guest = new CustomerByProperty($subscriber);
-            $lodging->Guest->Initialize($row['guest']);
+            $booking = $row['booking']; 
 
             $data[] = $lodging;
         }
 
-        return $data;
+        $lodgingData = [];
+        $i = 1;
+        foreach ($data as $item) {
+            if(count($item->rooms) > 0){
+                $roomId = $item->rooms[0]->Id;
+                $sql = "SELECT roomcategory.name, room.number from room 
+                        JOIN roomcategory 
+                        ON room.category = roomcategory.roomcategoryid
+                        WHERE room.roomid = '$roomId'";
+
+                $query = $db->query($sql);
+                while(($row = $query->fetch_assoc()) != null):
+                    $category = $row['name']; 
+                    $number = $row['number']; 
+                endwhile;
+
+                $checkin_date = new WixDate($item->data['checkin']);
+                $checkout_date = new WixDate($item->data['checkout']);
+
+                $checkIn=date_create($checkin_date->Year . '/' . $checkin_date->Month . '/' . $checkin_date->Day);
+                $checkOut=date_create($checkout_date->Year . '/' . $checkout_date->Month . '/' . $checkout_date->Day);
+
+                $nights_spent = $checkIn->diff($checkOut);
+
+                $obj = (object)null;
+                $obj->sn = $i;
+                $obj->booking = $item->data['booking'];
+                $obj->staff = new User($item->data['user']);
+                $obj->room_number = $number;
+                $obj->period = $nights_spent->d;
+                $obj->room_category = $category;
+                $obj->bill = doubleval($item->data['bills']);
+                $obj->checkin_date = $checkin_date;
+                $obj->actual_checkoutdate = new WixDate($item->data['checkout_date']);
+                $obj->created = new WixDate($item->data['created']);
+                $obj->discount = doubleval($item->data['discount']);
+                $obj->paidamount = doubleval($item->data['paidamount']);
+                $obj->total = doubleval($item->data['total']);
+                $obj->payment_modes = ['Pos', 'Transfer', 'Others', 'Cash', 'Online'];
+                $lodgingData[] = $obj;
+                $i++;
+            }
+        }
+
+        foreach ($lodgingData as $data) {
+            $booking = $data->booking;
+
+            $qu = $db->query("SELECT * from reservation WHERE booking = '$booking'");
+            while(($rowData = $qu->fetch_assoc()) != null):
+                $reservation_id = $rowData['reservationid']; 
+                $platform = $rowData['platformName']; 
+            endwhile;
+
+            // GET REVENUE DATA
+            $statement = "SELECT amount, payment_mode from revenue WHERE reservationid = '$reservation_id' OR booking_no = '$booking'";
+
+            $revenueData = [];
+            $queryRevenue = $db->query($statement);
+            while(($row = $queryRevenue->fetch_assoc()) != null):
+                $revenueData[] = $row;
+            endwhile;
+
+            $data->revenueData = $revenueData;
+            $data->platform = $platform;
+        }
+
+        return $lodgingData;
     }
 
     public static function Checkout(Subscriber $subscriber)
@@ -1650,5 +1717,54 @@ class Lodging
         }
     }
 
+    public static function lodgingCanBeProcessed(Subscriber $subscriber, object &$room)
+    {
+        // @var boolean $CanBeProcessed
+        $CanBeProcessed = false;
 
+        // get room category and number
+        $roomList = [];
+
+        $items = explode(",", $_REQUEST['items']);
+
+        for ($i = 0; $i < count($items); $i++) :
+        
+            $r = explode(":", $items[$i]);
+
+            if (count($r) > 3)
+            {
+                $cat = new Roomcategory($subscriber);
+                $cat->Initialize($r[0]);
+
+                $std = new stdClass();
+                $std->Number = $r[2];
+                $std->Room = $cat;
+                $std->RoomId = $r[0];
+
+                array_push($roomList, $std);
+            }
+
+        endfor;
+
+        // get yesterday timestamp
+        $lastMonth = strtotime(date('m/d/Y', strtotime('last month')));
+
+        // get the room
+        $room = $roomList[0];
+
+        // generate sql statement
+        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%') AND checkoutdate >= '$lastMonth'";
+
+        // get database instance
+        $db = $subscriber->GetDB();
+
+        // run query
+        $query = $db->query($sqlStatement);
+
+        // check rows
+        if ($query->num_rows == 0) $CanBeProcessed = true;
+
+        // return boolean
+        return $CanBeProcessed;
+    }
 }

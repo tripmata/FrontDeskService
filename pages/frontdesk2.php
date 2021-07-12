@@ -194,11 +194,6 @@
                                     </a>
 
                                     <a onclick='switchTab(this)' class='nav__link'>
-                                        <i class='bx bx-id-card nav__icon' ></i>
-                                        <span class='nav__name'>Channel Manager</span>
-                                    </a>
-
-                                    <a onclick='switchTab(this)' class='nav__link'>
                                         <i class='bx bx-drink nav__icon' ></i>
                                         <span class='nav__name'>Room Service</span>
                                     </a>

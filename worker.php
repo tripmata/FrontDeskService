@@ -1930,7 +1930,7 @@
             $id = $_REQUEST['reservation_id'];
             $user_id = $_REQUEST['user_id'];
             $total = floatval($_REQUEST['total']);
-            $paidAmount = floatval($_REQUEST['paidAmount']);
+            $paidAmount = floatval($_REQUEST['paidAmount']) + floatval($_REQUEST['deposit']);
             // $category = $_REQUEST['category'];
 
             $customer_id = $_REQUEST['customer_id'];            
@@ -1941,7 +1941,7 @@
             $indate = strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year);
 			$outdate = strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year);            
 
-            $discount = 0;
+            $discount = floatval($_REQUEST['discount']);
             // $checkedin = 1;
             $paid = 1;
 

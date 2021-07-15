@@ -1747,13 +1747,13 @@ class Lodging
         endfor;
 
         // get yesterday timestamp
-        $lastMonth = strtotime(date('m/d/Y', strtotime('last month')));
+        // $lastMonth = strtotime(date('m/d/Y', strtotime('last month')));
 
         // get the room
         $room = $roomList[0];
 
         // generate sql statement
-        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%') AND checkoutdate >= '$lastMonth'";
+        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%')";
 
         // get database instance
         $db = $subscriber->GetDB();
@@ -1761,8 +1761,27 @@ class Lodging
         // run query
         $query = $db->query($sqlStatement);
 
-        // check rows
-        if ($query->num_rows == 0) $CanBeProcessed = true;
+        // @var int $found
+        $found = 0;
+
+        // can we run through
+        if ($query->num_rows > 0) while ($row = $query->fetch_assoc()) :
+
+            // read rooms json string
+            $rooms = json_decode(stripslashes($row['rooms']));
+
+            // array ??
+            if (is_array($rooms)) :
+
+                // get category and room number
+                if ($rooms[0]->room == $room->Room->Id && $rooms[0]->number == $room->Number) $found++;
+
+            endif;
+
+        endwhile;
+
+        // check found
+        if ($found == 0) $CanBeProcessed = true;
 
         // return boolean
         return $CanBeProcessed;

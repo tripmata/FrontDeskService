@@ -49,7 +49,7 @@ class Lodging
         {
             $db = $this->subscriber->GetDB();
 
-            $res = $db->query("SELECT * FROM lodging WHERE lodgingid='$arg'");
+            $res = $db->query("SELECT * FROM lodging WHERE lodgingid='$arg' OR booking='$arg' ");
 
             if($res->num_rows > 0)
             {
@@ -1657,22 +1657,35 @@ class Lodging
         return $lodgingData;
     }
 
-    public static function Checkout(Subscriber $subscriber)
+    public static function Checkout(Subscriber $subscriber, $id = null, $useReservationDate = false)
     {
         $lodging = new Lodging($subscriber);
-        $lodging->Initialize($_REQUEST['booking']);
+        $identifier = isset($id) ? $id : $_REQUEST['booking'];
+        $lodging->Initialize($identifier);
         $lodging->Checkedout = true;
         $todayDate = strtotime(date("m/d/Y H:i:s", time()));
 
-        $lodging->Checkoutdate = new WixDate($todayDate);
+        $booking = $lodging->Bookingnumber;
+        
+        $reservation = new Reservation($booking);
+        $checkout = $reservation->Checkoutdate;
+
+        // $test = isset($lodging->Bookingnumber) ? $lodging->Bookingnumber : $id;
+        // return $identifier;
+        $outdate = strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year);  
+        
+        // if true use reservation checkout date, else use today's date
+        $out_date = $useReservationDate ? new WixDate($outdate) : new WixDate($todayDate);
+        
+        $lodging->Checkoutdate = $out_date;
 
         for($i = 0; $i < count($lodging->Rooms); $i++)
         {
             if(($lodging->Rooms[$i]->Category->Name === $_REQUEST['category']) || ($lodging->Rooms[$i]->Number == $_REQUEST['room']))
             {
                 $lodging->Rooms[$i]->Checkedout = true;
-                $lodging->Rooms[$i]->Checkout = new WixDate($todayDate);
-                $lodging->Rooms[$i]->Checkouttime = new WixDate($todayDate);
+                $lodging->Rooms[$i]->Checkout = $out_date;
+                $lodging->Rooms[$i]->Checkouttime = $out_date;
                 $lodging->User = $_REQUEST['posuser'];
                 $lodging->Save();
 

@@ -914,25 +914,39 @@
                         if ($_REQUEST['operation'] === "checkin")
                         {
                             $roomObject = (object) [ 'Number' => 0 ];
-                            
+                            $fromCheckinModal = isset($_REQUEST['fromCheckinModal']) ? Convert::ToBool($_REQUEST['fromCheckinModal']) : false;                                
+                            $proceedCheckin = $fromCheckinModal ? true : (Lodging::lodgingCanBeProcessed($subscriber, $roomObject));
+
                             // lodging can be processed
-                            if (Lodging::lodgingCanBeProcessed($subscriber, $roomObject))
+                            if ($proceedCheckin)
                             {
                                 $lodging = new Lodging($subscriber);
 
-                                $guest = json_decode($_REQUEST['guest']);
-                                $items = explode(",", $_REQUEST['items']);
-
+                                $items = null;
                                 $customer = null;
-
-                                $rooms = [];
+                                 $rooms = [];
                                 $newReservation = false;
+                                $discount = null;
+                                $total = null;
+                                $taxes = null;                                
+                                $paidAmount = null;
 
-                                // offload discount, total, taxes
-                                $discount = doubleval($_REQUEST['discount']);
-                                $total = doubleval($_REQUEST['total']);
-                                $taxes = doubleval($_REQUEST['taxes']);
+                              
+                                if($fromCheckinModal){                                    
+                                    $guestId = $_REQUEST['guestId'];
+                                    $taxes = doubleval($_REQUEST['taxes']);                                                                                                                      
+                                    $items = explode(",", $_REQUEST['items']);
+                                }else{
+                                    $guest = json_decode($_REQUEST['guest']);
+                                    $items = explode(",", $_REQUEST['items']);
+                                    // offload discount, total, taxes
+                                    $discount = doubleval($_REQUEST['discount']);
+                                    $total = doubleval($_REQUEST['total']);
+                                    $taxes = doubleval($_REQUEST['taxes']);
+                                    $paidAmount = $_REQUEST['paidAmount'];
+                                }
 
+                                // return $router->printJson(['data' => $test]);
                                 // reservation has been made previously??
                                 if (Convert::ToBool($_REQUEST['fromReserve']))
                                 {
@@ -940,7 +954,13 @@
                                     $reservation->Checkedin = true;
                                     $reservation->Activated = true;
                                     $reservation->Noshow = false;
-                                    $reservation->ArrivalTime = date('g:i a');
+                                    $reservation->ArrivalTime = date('g:i a');                                    
+
+                                    if($fromCheckinModal){
+                                        $paidAmount = $reservation->Paidamount;
+                                        $discount = $reservation->Discount;
+                                        $total = $reservation->Total;
+                                    }
 
                                     // update total
                                     $total = $reservation->Total;
@@ -953,7 +973,7 @@
                                     $paid = $reservation->Paid;
                                     $amountPaid = doubleval($reservation->Paidamount) + doubleval($reservation->Discount);
 
-                                    if (doubleval($_REQUEST['paidAmount']) > 0 && ($amountPaid < doubleval($reservation->Total)))
+                                    if (doubleval($paidAmount) > 0 && ($amountPaid < doubleval($reservation->Total)))
                                     {
                                         // if (doubleval($reservation->Paidamount) == 0) :
 
@@ -980,7 +1000,7 @@
                                             
                                         // endif;
 
-                                        $reservation->Paidamount = (doubleval($reservation->Paidamount)) + doubleval($_REQUEST['paidAmount']);
+                                        $reservation->Paidamount = (doubleval($reservation->Paidamount)) + doubleval($paidAmount);
                                         $reservation->Paid = true;
                                     }
 
@@ -1002,7 +1022,7 @@
                                         $customer->fetchCustomerIdBeforeSaving(CustomerByProperty::SAVE_ON_CHECKIN);
                                     }
 
-                                    if ($paid == false)
+                                    if ($paid == false && $fromCheckinModal == false)
                                     {
                                         // save into revenue
                                         Revenue::SaveFromArray([
@@ -1112,6 +1132,7 @@
                                     $reservation->Checkoutdate = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
                                     $reservation->Checkindate = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
                                     $reservation->Rooms = $roomList;
+                                    $reservation->Activated = true;
 
                                     $newReservation = true;
 
@@ -1141,7 +1162,7 @@
                                     $lodging->Paidamount = doubleval($_REQUEST['paidAmount']);
                                     $lodging->Paid = true;
 
-                                    if (Convert::ToBool($_REQUEST['fromReserve']) == false)
+                                    if (Convert::ToBool($_REQUEST['fromReserve']) == false && $fromCheckinModal == false)
                                     {
                                         // save into revenue
                                         Revenue::SaveFromArray([
@@ -1190,20 +1211,22 @@
                                         }
 
                                         $pixel->Number = $r[2];
-
+                                        $pixel->Category = $rCat;
+                                        
                                         $cc = new WixDate(Convert::ToInt($r[3]));
                                         $cch = strtotime($cc->Month."/".$cc->Day."/".$cc->Year);
-
-                                        if($cch < strtotime(date("m/d/Y")))
+                                        $todays_date = strtotime(date("m/d/Y"));
+                                        
+                                        if($cch < $todays_date && $fromCheckinModal == false)
                                         {
-                                            $price = (round(strtotime(date("m/d/Y")) - $cch) / ((60 * 60) * 24)) * doubleval($rCat->Price);
+                                            $price = (round($todays_date - $cch) / ((60 * 60) * 24)) * doubleval($rCat->Price);                                            
                                             $lodging->Total = doubleval($lodging->Total - $price);
                                         }
 
                                         $checkin = new WixDate(strtotime(date("m/d/Y")));
                                         $checkout = new WixDate(Convert::ToInt($r[5]));
 
-                                        $pixel->Checkin = new WixDate(strtotime($checkin->Month."/".$checkin->Day."/".$checkin->Year));
+                                        $pixel->Checkin = new WixDate(strtotime($cc->Month."/".$cc->Day."/".$cc->Year));
                                         $pixel->Checkout = new WixDate(strtotime($checkout->Month."/".$checkout->Day."/".$checkout->Year));
 
                                         $lodging->Checkin = $pixel->Checkin;
@@ -1218,6 +1241,12 @@
                                 $lodging->Rooms = $rooms;
                                 $lodging->Checkincount = count($rooms);
                                 $lodging->Save();
+
+                                $res_checkout = $reservation->Checkoutdate;
+			                    $outdate = strtotime($res_checkout->Month."/".$res_checkout->Day."/".$res_checkout->Year);  
+                                if($fromCheckinModal == true && strtotime(date("m/d/Y")) > $outdate){                                    
+                                    Lodging::Checkout($subscriber, $lodging->Bookingnumber, true); // this would set the lodging checkout date to reservation checout date
+                                }
 
                                 // save reservation
                                 if ($newReservation) :
@@ -1967,7 +1996,7 @@
             $db = DB::GetDB();
 
             // verify id
-            $reservation = $db->query("SELECT * FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
+            $reservation = $db->query("SELECT booking FROM reservation WHERE reservationid = '{$_REQUEST['id']}'");
 
             // do we have such reservation
             if ($reservation->num_rows == 0) return $router->printJson(['status' => 'error', 'message' => 'Invalid Reservation Identifier. This request is flagged invalid']);

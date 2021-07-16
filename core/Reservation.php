@@ -53,7 +53,7 @@
 			{
 				$db = DB::GetDB();
 
-				$res = $db->query("SELECT * FROM reservation WHERE reservationid='$arg'");
+				$res = $db->query("SELECT * FROM reservation WHERE reservationid='$arg' OR booking='$arg' ");
 
 				if($res->num_rows > 0)
 				{
@@ -1912,7 +1912,10 @@
             $lodging->Checkincount = count($rooms);
             $lodging->Save();
 
-
+           
+            if(strtotime(date("m/d/Y")) > $outdate){
+                Lodging::Checkout($subscriber, $lodging->Id, true); // this would set the lodging checkout date to reservation checout date
+            }
             // $obj = (object)null;
             // $obj->lodging = $lodging;
             // $obj->reservation = $reservation;

@@ -1377,10 +1377,12 @@
                             $ret->Message = "Success";
                         }
 
-                        if ($_REQUEST['operation'] === "overdue refund"){
+                        if ($_REQUEST['operation'] === "overdue refund")
+                        {
                             $booking_id = $_REQUEST['booking_id'];
+
                             $db = DB::GetDB();
-                            $res = $db->query("SELECT * FROM reservation WHERE booking='$booking_id'");
+                            $res = $db->query("SELECT reservationid FROM reservation WHERE booking='$booking_id'");
 
                             $reservationid = null;
                             if($res->num_rows > 0){
@@ -1394,6 +1396,27 @@
                                 $ret->Data->type = 'checkout_refund';
                                 $ret->Status = "success";
                                 $ret->Message = "Refund successful. Pending approval from Admin.";                            
+                            }
+                            else
+                            {
+                                // check lodging
+                                $res = $db->query("SELECT booking FROM lodging WHERE booking = '{$booking_id}'");
+
+                                // are we good 
+                                if ($res->num_rows > 0) :
+
+                                    $lodging = new Lodging($subscriber);
+                                    $lodging->Initialize($booking_id);
+                                    $lodging->Checkoutcount = 1;
+                                    $lodging->Checkedout = true;
+                                    $lodging->Save();
+                                
+                                    $ret->Data = new stdClass();
+                                    $ret->Data->type = 'checkout_refund';
+                                    $ret->Status = "success";
+                                    $ret->Message = "Refund successful. Pending approval from Admin."; 
+
+                                endif;
                             }
                         }
 

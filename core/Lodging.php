@@ -292,7 +292,7 @@ class Lodging
                     goto redo;
                 }
                 $this->Id = $id;
-                $db->query("INSERT INTO lodging(lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total,platformName,checkout_date) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal', '$platform','$checkout_date')");
+                $db->query("INSERT INTO lodging (lodgingid,created,guest,subguest,rooms,checkin,checkout,`days`,adults,children,pet,paid,total,taxes,discount,paidamount,roomcategory,user,checkouts,bills,booking,checkincount,checkoutcount,checkedout,propertyid,base_total,platformName,checkout_date) VALUES ('$id','$created','$guest','$subguest','$rooms','$checkin','$checkout','$days','$adults','$children','$pet','$paid','$total','$taxes','$discount','$paidamount','$roomcategory','$user','$checkouts','$bills','$booking','$checkincount','$checkoutcount','$checkedout', '$property', '$baseTotal', '$platform','$checkout_date')");
             
             endif;
         }
@@ -1761,12 +1761,13 @@ class Lodging
 
         // get yesterday timestamp
         // $lastMonth = strtotime(date('m/d/Y', strtotime('last month')));
+        $yesterday = strtotime(date('m/d/Y', strtotime('yesterday')));
 
         // get the room
         $room = $roomList[0];
 
         // generate sql statement
-        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%')";
+        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%') AND checkoutdate = '$yesterday'";
 
         // get database instance
         $db = $subscriber->GetDB();

@@ -1636,7 +1636,7 @@ class Lodging
             $booking = $data->booking;
 
             $qu = $db->query("SELECT * from reservation WHERE booking = '$booking'");
-            while(($rowData = $qu->fetch_assoc()) != null):
+            while(($rowData = $qu->fetch_assoc())):
                 $reservation_id = $rowData['reservationid']; 
                 $platform = $rowData['platformName']; 
             endwhile;
@@ -1646,7 +1646,7 @@ class Lodging
 
             $revenueData = [];
             $queryRevenue = $db->query($statement);
-            while(($row = $queryRevenue->fetch_assoc()) != null):
+            while(($row = $queryRevenue->fetch_assoc())):
                 $revenueData[] = $row;
             endwhile;
 

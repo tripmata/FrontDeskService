@@ -1790,7 +1790,18 @@ class Lodging
             if (is_array($rooms)) :
 
                 // get category and room number
-                if ($rooms[0]->room == $room->Room->Id && $rooms[0]->number == $room->Number) $found++;
+                if ($rooms[0]->room == $room->Room->Id && $rooms[0]->number == $room->Number)
+                {
+                    // get booking id
+                    $bookingId = $row['booking'];
+
+                    // check the lodging table
+                    $lodgingStatement = "SELECT booking FROM lodging WHERE booking = '{$bookingId}' AND checkedout = 0";
+
+                    // run query
+                    if ($db->query($lodgingStatement)->num_rows == 1) $found++;
+
+                }
 
             endif;
 

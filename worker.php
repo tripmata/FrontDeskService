@@ -657,6 +657,9 @@
                             // get db instance
                             $db = DB::GetDB();
 
+                            // get the booking number 
+                            $bookingNumber = $_REQUEST['booking'];
+
                             // update checked in manually
                             $db->query("UPDATE reservation SET checkedout = 1 WHERE booking = '{$lodging->Bookingnumber}'");
 
@@ -1338,11 +1341,45 @@
                             $reservation = new Reservation($_REQUEST['reservationid']);
                             $reservation->Cancelled = true;
                             $reservation->Noshow = false;
-                            $reservation->Save();
+                            $refundGuest = $_REQUEST['refundGuest'];
+
+                            if ($refundGuest) {
+                                if (isset($_REQUEST['payment_method']) && isset($_REQUEST['message']))
+                                {
+                                    $payment_method = $_REQUEST['payment_method'];
+                                    $bankname = isset($_REQUEST['bankname']) ? $_REQUEST['bankname'] : '';
+                                    $acc_name = isset($_REQUEST['acc_name']) ? $_REQUEST['acc_name'] : '';
+                                    $acc_number = isset($_REQUEST['acc_number']) ? $_REQUEST['acc_number'] : '';
+
+                                    if(!empty($_REQUEST['others_option']))
+                                    {
+                                        $payment_method = $_REQUEST['others_option'];
+                                    }
+
+                                    $reservation->RefundPaymentCondition = json_encode([
+                                        'method'   => $payment_method,
+                                        'message'  => $_REQUEST['message'],
+                                        'loggedBy' => $_REQUEST['posuser'],
+                                        'bank'     => $bankname,
+                                        'acc_name'     => $acc_name,
+                                        'acc_number'     => $acc_number,
+                                    ]);
+                                }
+
+                                $reservation->Save();
+
+                                if ($reservation->IsOnline == 1)
+                                {
+                                    // send confirmation email
+                                    $reservation->sendConfirmationMail();
+                                }
+                            }  else{
+                                $reservation->Save();
+                            }                          
 
                             $ret->Status = "success";
                             $ret->Message = "Reservation canceled successfully";
-                            $ret->Data = null;
+                            $ret->Data = $reservation;
                         }
 
                         if($_REQUEST['operation'] === "early checkout"){
@@ -1419,7 +1456,7 @@
                                 endif;
                             }
                         }
-
+                                              
                     }
                 }
             }

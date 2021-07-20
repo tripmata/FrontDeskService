@@ -1767,7 +1767,9 @@ class Lodging
         $room = $roomList[0];
 
         // generate sql statement
-        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%') AND checkoutdate = '$yesterday'";
+        $sqlStatement = "SELECT * FROM `reservation` WHERE property = '{$room->Room->Property->Id}' AND checkedin = 1 AND checkedout = 0 AND (rooms LIKE '%{$room->Room->Id}%' AND rooms LIKE '%{$room->Number}%')";
+
+        // var_dump($sqlStatement);
 
         // get database instance
         $db = $subscriber->GetDB();
@@ -1793,6 +1795,8 @@ class Lodging
             endif;
 
         endwhile;
+
+        // var_dump($found);
 
         // check found
         if ($found == 0) $CanBeProcessed = true;
